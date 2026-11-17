@@ -223,13 +223,16 @@ export function Settings() {
             </div>
           </Group>
 
-          <Group id="hotkeys" title="Hotkeys" lead="Work everywhere, even in fullscreen games. Set through COSMIC's keyboard shortcuts.">
+          <Group id="hotkeys" title="Hotkeys" lead="Work everywhere, even in fullscreen games. Set through COSMIC's keyboard shortcuts. Click one and press a key; Backspace clears it.">
             <div className="rows">
               <Row title="Save clip" desc={`Saves the last ${r.default_clip_seconds} seconds.`}>
                 <HotkeyInput value={s.hotkeys.clip} onChange={(v) => set({ hotkeys: { clip: v } })} />
               </Row>
               <Row title="Save long clip" desc={`Saves the whole ${r.replay_seconds}s buffer.`}>
                 <HotkeyInput value={s.hotkeys.clip_long} onChange={(v) => set({ hotkeys: { clip_long: v } })} />
+              </Row>
+              <Row title="Start / stop full recording" desc="Records everything until you press it again, like a normal screen recording.">
+                <HotkeyInput value={s.hotkeys.record ?? ""} onChange={(v) => set({ hotkeys: { record: v } })} />
               </Row>
             </div>
           </Group>
