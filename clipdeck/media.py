@@ -79,6 +79,12 @@ def last_seconds(src: Path, dst: Path, seconds: float) -> None:
           "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", str(dst)])
 
 
+def frame(src: Path, dst: Path, at: float) -> None:
+    """Full-resolution still image."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    _run(["-ss", f"{max(at, 0):.3f}", "-i", str(src), "-frames:v", "1", *THREADS, str(dst)])
+
+
 def audio_track(src: Path, dst: Path, index: int) -> None:
     """Pull one audio track out as .m4a (no re-encode), so the player can mix game and mic."""
     dst.parent.mkdir(parents=True, exist_ok=True)
