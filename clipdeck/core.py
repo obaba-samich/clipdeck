@@ -118,6 +118,8 @@ class Core:
             threading.Thread(target=self.listener.start, daemon=True).start()
         if old["clips_dir"] != new["clips_dir"]:
             threading.Thread(target=self.library.scan, daemon=True).start()
+            if self.recorder.state != "stopped":  # it writes into <clips_dir>/.incoming
+                threading.Thread(target=self.recorder.restart, daemon=True).start()
         self.events.emit("settings")
 
     def status(self) -> dict:
