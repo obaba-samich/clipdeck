@@ -1,0 +1,495 @@
+"""Web API, media streaming and the clip library site (PC + phone)."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import hmac
+import html
+import json
+import logging
+import mimetypes
+import queue
+import secrets
+import shutil
+import socket
+import time
+import urllib.request
+import uuid
+from collections import defaultdict
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
+
+from . import media
+from .config import CACHE_DIR
+from .core import Core
+from .games import steam_cover, steam_hero
+from .recorder import list_options
+
+log = logging.getLogger("clipdeck.server")
+
+STATIC = Path(__file__).parent / "static"
+EXPORTS = CACHE_DIR / "exports"
+COOKIE = "clipdeck_session"
+PUBLIC_PREFIXES = ("/s/", "/assets/", "/icons/", "/manifest.webmanifest", "/sw.js", "/favicon")
+LOCAL = {"127.0.0.1", "::1", "localhost"}
+
+
+def lan_ip() -> str:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("10.255.255.255", 1))
+            return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+
+
+def create_app(core: Core | None = None) -> FastAPI:
+    core = core or Core()
+    cfg = core.config
+    db = core.db
+    lib = core.library
+    failed_logins: dict[str, list[float]] = defaultdict(list)
+    options_cache: dict = {}
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        core.start()
+        yield
+        core.stop()
+
+    app = FastAPI(title="Clipdeck", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+    # auth ------------------------------------------------------------------
+
+    def token() -> str:
+        return hmac.new(cfg["server"]["secret"].encode(), b"session-v1", hashlib.sha256).hexdigest()
+
+    def authed(req: Request) -> bool:
+        if req.client and req.client.host in LOCAL:
+            return True
+        got = req.cookies.get(COOKIE, "")
+        return bool(got) and hmac.compare_digest(got, token())
+
+    @app.middleware("http")
+    async def guard(req: Request, call_next):
+        p = req.url.path
+        open_path = p in ("/", "/login", "/api/login", "/api/me") or p.startswith(PUBLIC_PREFIXES) \
+            or not (p.startswith("/api/") or p.startswith("/media/"))
+        if not open_path and not authed(req):
+            return JSONResponse({"error": "login"}, status_code=401)
+        resp = await call_next(req)
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("Referrer-Policy", "same-origin")
+        return resp
+
+    @app.get("/api/me")
+    def me(req: Request):
+        return {"authed": authed(req), "local": bool(req.client and req.client.host in LOCAL)}
+
+    @app.post("/api/login")
+    def login(req: Request, body: dict = Body(...)):
+        ip = req.client.host if req.client else "?"
+        now = time.time()
+        failed_logins[ip] = [t for t in failed_logins[ip] if now - t < 300]
+        if len(failed_logins[ip]) >= 8:
+            raise HTTPException(429, "Too many tries. Wait a few minutes.")
+        if not hmac.compare_digest(str(body.get("passcode", "")).strip(), cfg["server"]["passcode"]):
+            failed_logins[ip].append(now)
+            raise HTTPException(401, "Wrong passcode")
+        resp = JSONResponse({"ok": True})
+        resp.set_cookie(COOKIE, token(), max_age=60 * 60 * 24 * 400, httponly=True, samesite="lax")
+        return resp
+
+    @app.post("/api/logout")
+    def logout():
+        resp = JSONResponse({"ok": True})
+        resp.delete_cookie(COOKIE)
+        return resp
+
+    # status / control ------------------------------------------------------
+
+    @app.get("/api/status")
+    def status():
+        s = core.status()
+        s["lan_url"] = f"http://{lan_ip()}:{cfg['server']['port']}"
+        s["clips_dir"] = str(cfg.clips_dir)
+        try:
+            du = shutil.disk_usage(cfg.clips_dir)
+            s["disk"] = {"free": du.free, "total": du.total}
+        except OSError:
+            s["disk"] = None
+        return s
+
+    @app.post("/api/clip")
+    def clip_now(body: dict = Body(default={})):
+        source = body.get("source", "web")
+        if source not in ("web", "phone", "hotkey", "hotkey_long", "cli"):
+            source = "web"
+        seconds = body.get("seconds")
+        if source == "hotkey_long":
+            source, seconds = "hotkey", 10**9
+        return core.clip(source=source, seconds=float(seconds) if seconds else None)
+
+    @app.post("/api/recorder/{action}")
+    def recorder(action: str):
+        if action == "start":
+            core.recorder.start()
+        elif action == "stop":
+            core.recorder.stop()
+        elif action == "restart":
+            core.recorder.restart()
+        else:
+            raise HTTPException(404)
+        return core.recorder.status()
+
+    @app.get("/api/events")
+    async def events(req: Request):
+        q = core.events.subscribe()
+
+        async def stream():
+            try:
+                yield "retry: 3000\n\n"
+                while not await req.is_disconnected():
+                    try:
+                        ev = await asyncio.to_thread(q.get, True, 15)
+                        yield f"data: {json.dumps(ev)}\n\n"
+                    except queue.Empty:
+                        yield ": ping\n\n"
+            finally:
+                core.events.unsubscribe(q)
+
+        return StreamingResponse(stream(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    # settings ----------------------------------------------------------------
+
+    @app.get("/api/settings")
+    def get_settings():
+        return cfg.public()
+
+    @app.put("/api/settings")
+    def put_settings(body: dict = Body(...)):
+        r = body.get("recorder", {})
+        # Never let the UI switch to GPU encoding; it crashes this PC.
+        r.pop("encoder", None)
+        if "replay_seconds" in r:
+            r["replay_seconds"] = int(min(max(int(r["replay_seconds"]), 10), 600))
+        if "fps" in r:
+            r["fps"] = int(min(max(int(r["fps"]), 15), 144))
+        return cfg.update(body)
+
+    @app.post("/api/settings/passcode")
+    def new_passcode():
+        return cfg.update({"server": {"passcode": f"{secrets.randbelow(10**6):06d}"}})
+
+    @app.get("/api/options")
+    def options(refresh: bool = False):
+        if refresh or not options_cache:
+            options_cache.clear()
+            options_cache.update(list_options())
+        return options_cache
+
+    # clips -------------------------------------------------------------------
+
+    def get(clip_id: str) -> dict:
+        c = db.get_clip(clip_id)
+        if not c:
+            raise HTTPException(404, "No such clip")
+        return c
+
+    def public_clip(c: dict) -> dict:
+        c = dict(c)
+        c["albums"] = db.clip_albums(c["id"])
+        c["filename"] = Path(c["path"]).name
+        return c
+
+    @app.get("/api/clips")
+    def clips(q: str = "", game: str = "", favorite: bool = False, album: str = "",
+              trash: bool = False, sort: str = "newest", limit: int = 120, offset: int = 0):
+        rows = db.list_clips(q=q, game=game, favorite=favorite, album=album, trash=trash,
+                             sort=sort, limit=min(limit, 500), offset=offset)
+        return [public_clip(c) for c in rows]
+
+    @app.get("/api/clips/{clip_id}")
+    def clip(clip_id: str):
+        return public_clip(get(clip_id))
+
+    @app.patch("/api/clips/{clip_id}")
+    def edit(clip_id: str, body: dict = Body(...)):
+        c = get(clip_id)
+        if "game" in body and body["game"] and body["game"] != c["game"]:
+            lib.rename_game(clip_id, str(body.pop("game"))[:80])
+        fields = {}
+        if "title" in body:
+            fields["title"] = str(body["title"]).strip()[:120] or c["title"]
+        if "favorite" in body:
+            fields["favorite"] = 1 if body["favorite"] else 0
+        for k in ("trim_start", "trim_end"):
+            if k in body:
+                v = body[k]
+                fields[k] = None if v is None else max(0.0, min(float(v), c["duration"]))
+        new = db.update_clip(clip_id, **fields)
+        if "trim_start" in fields or "trim_end" in fields:
+            lib.refresh_art(clip_id)
+        core.events.emit("updated", clip=public_clip(new))
+        return public_clip(new)
+
+    @app.post("/api/clips/{clip_id}/view")
+    def viewed(clip_id: str):
+        db.add_view(clip_id)
+        return {"ok": True}
+
+    @app.delete("/api/clips/{clip_id}")
+    def remove(clip_id: str):
+        lib.trash(get(clip_id)["id"])
+        return {"ok": True}
+
+    @app.post("/api/clips/bulk")
+    def bulk(body: dict = Body(...)):
+        ids = [i for i in body.get("ids", []) if db.get_clip(i)]
+        action = body.get("action")
+        for i in ids:
+            if action == "trash":
+                lib.trash(i)
+            elif action == "restore":
+                lib.restore(i)
+            elif action == "purge":
+                lib.purge(i)
+            elif action == "favorite":
+                db.update_clip(i, favorite=1)
+            elif action == "unfavorite":
+                db.update_clip(i, favorite=0)
+        if action == "album" and body.get("album"):
+            db.album_add(body["album"], ids)
+        if action == "unalbum" and body.get("album"):
+            db.album_remove(body["album"], ids)
+        core.events.emit("bulk")
+        return {"ok": True, "count": len(ids)}
+
+    @app.post("/api/clips/{clip_id}/restore")
+    def restore(clip_id: str):
+        lib.restore(get(clip_id)["id"])
+        return {"ok": True}
+
+    @app.delete("/api/trash")
+    def empty_trash():
+        return {"ok": True, "deleted": lib.empty_trash()}
+
+    @app.post("/api/clips/{clip_id}/export")
+    async def export(clip_id: str, body: dict = Body(default={})):
+        get(clip_id)
+        new = await asyncio.to_thread(lib.export_trim, clip_id, bool(body.get("exact", True)))
+        return public_clip(new)
+
+    @app.post("/api/clips/{clip_id}/share")
+    def share(clip_id: str):
+        c = get(clip_id)
+        tok = c["share_token"] or secrets.token_urlsafe(9)
+        db.update_clip(clip_id, share_token=tok)
+        return {"token": tok, "path": f"/s/{tok}"}
+
+    @app.delete("/api/clips/{clip_id}/share")
+    def unshare(clip_id: str):
+        get(clip_id)
+        db.update_clip(clip_id, share_token=None)
+        return {"ok": True}
+
+    @app.post("/api/clips/{clip_id}/discord")
+    async def discord(clip_id: str, body: dict = Body(default={})):
+        c = get(clip_id)
+        hook = cfg["share"]["discord_webhook"].strip()
+        if not hook.startswith(("https://discord.com/api/webhooks/", "https://discordapp.com/api/webhooks/")):
+            raise HTTPException(400, "Add a Discord webhook in Settings first")
+        out = await asyncio.to_thread(_export_file, c, float(body.get("mic", 1.0)), float(body.get("game", 1.0)), 9.5)
+        msg = str(body.get("message") or c["title"])[:1900]
+        await asyncio.to_thread(_post_discord, hook, out, msg, c)
+        return {"ok": True}
+
+    def _export_file(c: dict, mic: float, game: float, max_mb: float | None) -> Path:
+        start = c["trim_start"] or 0
+        end = c["trim_end"] or c["duration"]
+        key = f"{c['id']}-{start:.2f}-{end:.2f}-{mic:.2f}-{game:.2f}-{max_mb}"
+        out = EXPORTS / f"{hashlib.sha1(key.encode()).hexdigest()[:16]}.mp4"
+        if not out.exists():
+            EXPORTS.mkdir(parents=True, exist_ok=True)
+            tmp = out.with_suffix(".part.mp4")
+            media.mixdown(Path(c["path"]), tmp, start, end, mic, game, max_mb=max_mb)
+            tmp.replace(out)
+        return out
+
+    def _post_discord(hook: str, path: Path, msg: str, c: dict) -> None:
+        boundary = uuid.uuid4().hex
+        fname = f"{c['title'][:60]}.mp4".replace('"', "")
+        payload = json.dumps({"content": msg, "username": "Clipdeck"})
+        parts = [
+            f'--{boundary}\r\nContent-Disposition: form-data; name="payload_json"\r\n'
+            f"Content-Type: application/json\r\n\r\n{payload}\r\n".encode(),
+            f'--{boundary}\r\nContent-Disposition: form-data; name="files[0]"; filename="{fname}"\r\n'
+            "Content-Type: video/mp4\r\n\r\n".encode(),
+            path.read_bytes(),
+            f"\r\n--{boundary}--\r\n".encode(),
+        ]
+        req = urllib.request.Request(hook, data=b"".join(parts), method="POST", headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}", "User-Agent": "Clipdeck"})
+        try:
+            urllib.request.urlopen(req, timeout=120).read()
+        except Exception as e:
+            raise HTTPException(502, f"Discord didn't accept it: {e}")
+
+    # games / albums ----------------------------------------------------------
+
+    @app.get("/api/games")
+    def games():
+        return db.games()
+
+    @app.get("/api/albums")
+    def albums():
+        return db.albums()
+
+    @app.post("/api/albums")
+    def new_album(body: dict = Body(...)):
+        name = str(body.get("name", "")).strip()[:60]
+        if not name:
+            raise HTTPException(400, "Name it first")
+        a = db.create_album(name)
+        if body.get("clips"):
+            db.album_add(a["id"], list(body["clips"]))
+        return a
+
+    @app.patch("/api/albums/{album_id}")
+    def rename_album(album_id: str, body: dict = Body(...)):
+        db.rename_album(album_id, str(body.get("name", "")).strip()[:60] or "Album")
+        return {"ok": True}
+
+    @app.delete("/api/albums/{album_id}")
+    def delete_album(album_id: str):
+        db.delete_album(album_id)  # clips stay in the library
+        return {"ok": True}
+
+    # media -------------------------------------------------------------------
+
+    cache_forever = {"Cache-Control": "private, max-age=31536000, immutable"}
+
+    @app.get("/media/clip/{clip_id}")
+    def video(clip_id: str):
+        c = get(clip_id)
+        return FileResponse(c["path"], media_type="video/mp4", headers={"Cache-Control": "private, max-age=3600"})
+
+    @app.get("/media/thumb/{clip_id}")
+    def thumb(clip_id: str):
+        p = lib.thumb(clip_id)
+        if not p.exists():
+            return Response(status_code=404, headers={"Cache-Control": "no-store"})
+        return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=60"})
+
+    @app.get("/media/preview/{clip_id}")
+    def preview(clip_id: str):
+        p = lib.preview(clip_id)
+        if not p.exists():
+            raise HTTPException(404)
+        return FileResponse(p, media_type="video/mp4", headers={"Cache-Control": "private, max-age=60"})
+
+    @app.get("/media/cover/{appid}")
+    def cover(appid: str):
+        p = steam_cover(appid) if appid.isdigit() else None
+        if not p:
+            raise HTTPException(404)
+        return FileResponse(p, media_type=mimetypes.guess_type(p.name)[0] or "image/jpeg", headers=cache_forever)
+
+    @app.get("/media/hero/{appid}")
+    def hero(appid: str):
+        p = steam_hero(appid) if appid.isdigit() else None
+        if not p:
+            raise HTTPException(404)
+        return FileResponse(p, media_type="image/jpeg", headers=cache_forever)
+
+    @app.get("/media/download/{clip_id}")
+    async def download(clip_id: str, mode: str = "original", mic: float = 1.0, game: float = 1.0):
+        c = get(clip_id)
+        name = "".join(ch for ch in c["title"] if ch not in '\\/:*?"<>|')[:80] or "clip"
+        if mode == "original":
+            path = Path(c["path"])
+        else:  # "share": one audio track, trimmed, plays everywhere
+            path = await asyncio.to_thread(_export_file, c, mic, game, None)
+        return FileResponse(path, media_type="video/mp4", filename=f"{name}.mp4")
+
+    # public share pages ------------------------------------------------------
+
+    @app.get("/s/{tok}")
+    def shared_page(tok: str):
+        c = db.by_share(tok)
+        if not c:
+            return HTMLResponse(_share_html(None, tok), status_code=404)
+        db.add_view(c["id"])
+        return HTMLResponse(_share_html(c, tok))
+
+    @app.get("/s/{tok}/video")
+    def shared_video(tok: str):
+        c = db.by_share(tok)
+        if not c:
+            raise HTTPException(404)
+        return FileResponse(c["path"], media_type="video/mp4")
+
+    @app.get("/s/{tok}/thumb")
+    def shared_thumb(tok: str):
+        c = db.by_share(tok)
+        if not c or not lib.thumb(c["id"]).exists():
+            raise HTTPException(404)
+        return FileResponse(lib.thumb(c["id"]), media_type="image/jpeg")
+
+    # the web app -------------------------------------------------------------
+
+    @app.get("/{path:path}")
+    def spa(path: str):
+        f = (STATIC / path).resolve()
+        if path and f.is_file() and STATIC.resolve() in f.parents:
+            headers = cache_forever if path.startswith("assets/") else {"Cache-Control": "no-cache"}
+            return FileResponse(f, headers=headers)
+        index = STATIC / "index.html"
+        if not index.exists():
+            return HTMLResponse("<p>Web app isn't built. Run <code>./install.sh</code>.</p>", status_code=503)
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+    return app
+
+
+def _share_html(c: dict | None, tok: str) -> str:
+    if not c:
+        body = '<div class="gone"><h1>This clip isn\'t shared anymore</h1><p>The link was turned off or the clip was deleted.</p></div>'
+        title = "Clip not found"
+        meta = ""
+    else:
+        t = html.escape(c["title"])
+        g = html.escape(c["game"])
+        secs = int(round((c["trim_end"] or c["duration"]) - (c["trim_start"] or 0)))
+        frag = ""
+        if c["trim_start"] or c["trim_end"]:
+            frag = f"#t={c['trim_start'] or 0:.2f},{c['trim_end'] or c['duration']:.2f}"
+        title = t
+        meta = (f'<meta property="og:title" content="{t}"><meta property="og:type" content="video.other">'
+                f'<meta property="og:image" content="/s/{tok}/thumb"><meta property="og:video" content="/s/{tok}/video">')
+        body = f"""
+<main>
+  <video src="/s/{tok}/video{frag}" poster="/s/{tok}/thumb" controls autoplay playsinline></video>
+  <div class="info">
+    <h1>{t}</h1>
+    <p><span class="game">{g}</span><span class="dot">·</span>{secs}s</p>
+  </div>
+  <a class="dl" href="/s/{tok}/video" download>Download</a>
+</main>"""
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title} · Clipdeck</title>{meta}
+<link rel="icon" href="/icons/icon.svg">
+<style>
+:root{{color-scheme:dark;--bg:#0b0c0f;--panel:#14161b;--line:#23262e;--text:#eef0f4;--muted:#8a90a0;--accent:#ff5a36}}
+*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 Inter,system-ui,sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}}
+main{{width:min(1100px,100%)}}video{{width:100%;border-radius:14px;background:#000;display:block;aspect-ratio:16/9}}
+.info{{margin:18px 2px 0}}h1{{font-size:22px;margin:0 0 4px;font-weight:650;letter-spacing:-.01em}}p{{margin:0;color:var(--muted)}}
+.game{{color:var(--text)}}.dot{{margin:0 8px}}.dl{{display:inline-block;margin-top:16px;padding:10px 16px;border-radius:10px;background:var(--panel);border:1px solid var(--line);color:var(--text);text-decoration:none;font-weight:600}}
+.dl:hover{{border-color:var(--accent)}}.gone{{text-align:center}}.gone h1{{font-size:20px}}
+</style></head><body>{body}</body></html>"""
