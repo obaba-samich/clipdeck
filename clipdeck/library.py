@@ -149,8 +149,11 @@ class Library:
         for clip in self.db.list_clips(limit=100000) + self.db.list_clips(trash=True, limit=100000):
             if not Path(clip["path"]).exists():
                 self.db.delete_clip(clip["id"])
-        for f in sorted(self.root.rglob("*")):
-            if f.suffix.lower() not in VIDEO_EXT or any(p.startswith(".") for p in f.relative_to(self.root).parts):
+        # Only the clips folder and one level of game folders: never sweep a whole drive.
+        files = [*self.root.glob("*"), *self.root.glob("*/*")]
+        for f in sorted(files):
+            if not f.is_file() or f.suffix.lower() not in VIDEO_EXT \
+                    or any(p.startswith(".") for p in f.relative_to(self.root).parts):
                 continue
             if self.db.by_path(str(f)):
                 continue
