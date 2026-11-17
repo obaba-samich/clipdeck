@@ -419,7 +419,7 @@ h2.section a:hover { color: var(--text); }
 
 /* mobile tab bar */
 .tabbar { display: none; }
-.mobile-only { display: none; }
+.mobile-only, .mobile-only-flex { display: none !important; }
 
 @media (max-width: 1100px) {
   .viewer { grid-template-columns: 1fr; }
@@ -431,7 +431,8 @@ h2.section a:hover { color: var(--text); }
   :root { --gutter: 16px; --topbar: 58px; }
   .shell { grid-template-columns: 1fr; }
   .sidebar { display: none; }
-  .mobile-only { display: initial; }
+  .mobile-only { display: initial !important; }
+  .mobile-only-flex { display: flex !important; }
   .desktop-only { display: none !important; }
   .main { padding-top: var(--safe-t); }
   .scroll { padding-bottom: calc(68px + var(--safe-b)); }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { FolderOpen, Gamepad2, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Film, FolderOpen, Gamepad2, MoreHorizontal, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { Album, api, fmtAgo, fmtDuration, fmtSize, Game, initials, media, useFetch } from "../api";
 import { ClipGrid, SkeletonGrid } from "../components/ClipGrid";
 import { useApp } from "../components/Layout";
@@ -32,6 +32,12 @@ export function Home() {
         </div>
       </div>
 
+      <div className="filters mobile-only-flex">
+        <Link className="chip" to="/clips"><Film size={14} />All clips</Link>
+        <Link className="chip" to="/favorites"><Star size={14} />Favorites</Link>
+        <Link className="chip" to="/albums"><FolderOpen size={14} />Albums</Link>
+        <Link className="chip" to="/trash"><Trash2 size={14} />Trash</Link>
+      </div>
       {clips === null ? (
         <SkeletonGrid />
       ) : clips.length === 0 ? (

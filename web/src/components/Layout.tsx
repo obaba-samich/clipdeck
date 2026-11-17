@@ -204,7 +204,7 @@ function TabBar() {
       <NavLink to="/" end><Home />Home</NavLink>
       <NavLink to="/games"><Gamepad2 />Games</NavLink>
       <button className="clip-btn" onClick={clip}><span className="c"><Scissors /></span>Clip</button>
-      <NavLink to="/albums"><FolderOpen />Albums</NavLink>
+      <NavLink to="/edits"><Clapperboard />Edits</NavLink>
       <NavLink to="/settings"><Settings />Settings</NavLink>
     </nav>
   );
