@@ -691,6 +691,15 @@ def create_app(core: Core | None = None) -> FastAPI:
             raise HTTPException(404)
         return FileResponse(c["path"], media_type="video/mp4")
 
+    @app.get("/s/{tok}/download")
+    async def shared_download(tok: str):
+        c = db.by_share(tok)
+        if not c:
+            raise HTTPException(404)
+        path = await asyncio.to_thread(_export_file, c, 1.0, 1.0, None)
+        name = "".join(ch for ch in c["title"] if ch not in '\\/:*?"<>|')[:80] or "clip"
+        return FileResponse(path, media_type="video/mp4", filename=f"{name}.mp4")
+
     @app.get("/s/{tok}/thumb")
     def shared_thumb(tok: str):
         c = db.by_share(tok)
@@ -736,7 +745,7 @@ def _share_html(c: dict | None, tok: str) -> str:
     <h1>{t}</h1>
     <p><span class="game">{g}</span><span class="dot">·</span>{secs}s</p>
   </div>
-  <a class="dl" href="/s/{tok}/video" download>Download</a>
+  <a class="dl" href="/s/{tok}/download">Download</a>
 </main>"""
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">

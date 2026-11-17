@@ -168,7 +168,7 @@ export function ClipView() {
     const full = trim.a <= 0.05 && trim.b >= dur - 0.05;
     await patch({ trim_start: full ? null : trim.a, trim_end: full ? null : trim.b });
     setDirty(false);
-    toast({ title: full ? "Trim removed" : "Trim saved", body: "The original video is kept. Share links and downloads use the trim." });
+    toast({ title: full ? "Trim removed" : "Trim saved", body: "The original video is kept. Share links, Discord and “Download for sharing” use the trim." });
   };
   const resetTrim = () => {
     setTrim({ a: 0, b: dur });
