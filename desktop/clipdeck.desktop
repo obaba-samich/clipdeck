@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=Clipdeck
+GenericName=Game clips
+Comment=Your clips, replay buffer and voice clipping
+Exec=@LAUNCHER@ open
+Icon=clipdeck
+Terminal=false
+Categories=AudioVideo;Video;Recorder;Game;
+Keywords=clip;replay;record;medal;gameplay;
+StartupWMClass=chrome-localhost__-Default
+Actions=clip;
+
+[Desktop Action clip]
+Name=Save clip now
+Exec=@LAUNCHER@ clip

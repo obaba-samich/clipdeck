@@ -56,3 +56,15 @@ say "Hotkeys"
 say "Done"
 echo "Library:  http://localhost:7878"
 "$HOME/.local/bin/clipdeck" passcode 2>/dev/null || echo "Phone:    see Settings → Phone"
+
+say "App launcher"
+for s in 64 128 256 512; do
+  d="$HOME/.local/share/icons/hicolor/${s}x${s}/apps"; mkdir -p "$d"
+  (cd web && node -e "require('sharp')('public/icons/icon.svg',{density:384}).resize($s,$s).png().toFile('$d/clipdeck.png')")
+done
+mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps" "$HOME/.local/share/applications"
+cp web/public/icons/icon.svg "$HOME/.local/share/icons/hicolor/scalable/apps/clipdeck.svg"
+sed "s#@LAUNCHER@#$HOME/.local/bin/clipdeck#g" desktop/clipdeck.desktop > "$HOME/.local/share/applications/clipdeck.desktop"
+command -v update-desktop-database >/dev/null && update-desktop-database -q "$HOME/.local/share/applications" || true
+gtk-update-icon-cache -q "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+echo "Clipdeck is in your app launcher now."
