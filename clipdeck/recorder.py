@@ -150,6 +150,10 @@ class Recorder:
 
     def restart(self) -> None:
         with self._lock:
+            if self.state == "error":
+                # After repeated crashes it gave up; a restart (or a settings change) means "try again".
+                self._want = True
+                self._fails = 0
             self._kill()
             if self._want:
                 self._spawn()

@@ -157,7 +157,8 @@ class Core:
                 self.recorder.stop()
             elif not n["only_while_gaming"]:
                 self.recorder.start()
-        elif any(o[k] != n[k] for k in RECORDER_KEYS) and self.recorder.state != "stopped":
+        elif (any(o[k] != n[k] for k in RECORDER_KEYS) or self.recorder.state == "error") \
+                and self.recorder.state != "stopped":
             threading.Thread(target=self.recorder.restart, daemon=True).start()
         if old["voice"] != new["voice"] or old["hype"]["enabled"] != new["hype"]["enabled"] \
                 or o["mic_device"] != n["mic_device"]:
