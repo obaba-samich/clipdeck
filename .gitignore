@@ -7,3 +7,9 @@ clipdeck/static/
 models/
 *.log
 *.tsbuildinfo
+
+# iOS build output
+ios/*.xcodeproj/
+ios/build/
+ios/Payload/
+*.ipa
