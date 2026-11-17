@@ -420,6 +420,7 @@ export function Editor() {
                   key={t.id}
                   t={t}
                   T={T}
+                  animate={playing}
                   stageH={stageH}
                   stage={stage}
                   selected={sel?.id === t.id}
@@ -653,8 +654,8 @@ function Slider({ label, value, min, max, step, unit, fmt, onChange }: {
   );
 }
 
-function TextOverlay({ t, T, stageH, stage, selected, onSelect, onMove }: {
-  t: TextItem; T: number; stageH: number; stage: React.RefObject<HTMLDivElement>; selected: boolean;
+function TextOverlay({ t, T, animate, stageH, stage, selected, onSelect, onMove }: {
+  t: TextItem; T: number; animate: boolean; stageH: number; stage: React.RefObject<HTMLDivElement>; selected: boolean;
   onSelect: () => void; onMove: (x: number, y: number, done: boolean) => void;
 }) {
   const el = useRef<HTMLDivElement>(null);
@@ -663,7 +664,7 @@ function TextOverlay({ t, T, stageH, stage, selected, onSelect, onMove }: {
   if (!visible && !selected) return null;
   let opacity = visible ? 1 : 0.35;
   let lift = 0;
-  if (visible && t.anim !== "none") {
+  if (visible && animate && t.anim !== "none") {
     opacity = Math.min(1, (T - t.start) / 0.2, (t.end - T) / 0.2);
     if (t.anim === "pop" && T - t.start < 0.25) lift = (1 - (T - t.start) / 0.25) * t.size * stageH * 0.4;
   }
