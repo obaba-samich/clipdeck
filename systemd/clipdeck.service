@@ -1,0 +1,16 @@
+[Unit]
+Description=Clipdeck: replay buffer, voice clipping and clip library
+After=graphical-session.target pipewire.service
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/clipdeck
+ExecStart=%h/projects/clipdeck/.venv/bin/python -m clipdeck serve
+Restart=on-failure
+RestartSec=5
+# The recorder itself runs at its own priority (Settings → Recording).
+Nice=2
+
+[Install]
+WantedBy=graphical-session.target
