@@ -469,7 +469,10 @@ h2.section a:hover { color: var(--text); }
   .viewer { padding-top: 0; gap: 16px; }
   .viewer .player { margin: 0 calc(var(--gutter) * -1); border-radius: 0; }
   .toasts { right: 16px; left: 16px; width: auto; bottom: calc(76px + var(--safe-b)); }
-  .selbar { bottom: calc(76px + var(--safe-b)); max-width: calc(100vw - 16px); padding-left: 12px; gap: 4px; }
+  .selbar { bottom: calc(76px + var(--safe-b)); left: 8px; right: 8px; max-width: none; transform: translateY(20px); padding: 6px 6px 6px 12px; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+  .selbar::-webkit-scrollbar { display: none; }
+  .selbar.show { transform: none; }
+  .selbar .btn { flex: none; }
   .selbar .n { font-size: 12.5px; margin-right: 2px; }
   .hide-sm { display: none; }
   .gridbar { justify-content: flex-start; margin-top: -10px; }
