@@ -200,6 +200,11 @@ export function ClipView() {
   const nativeShare = async () => {
     // Phone share sheet (Messages, TikTok, Discord…): send the actual file, one audio track.
     if (!clip) return;
+    if (navigator.userAgent.includes("ClipdeckApp")) {
+      // The iPhone app catches downloads and opens the share sheet itself.
+      location.href = media.download(id, "share", vol.mic, vol.game);
+      return;
+    }
     setBusy("share");
     try {
       const res = await fetch(media.download(id, "share", vol.mic, vol.game));
