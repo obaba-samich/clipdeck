@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowDownUp, Clapperboard, Film, Mic, Scissors, Search, Sparkles, Star, Trash2, Upload, Video } from "lucide-react";
 import { api, Clip, fmtSize, useLive } from "../api";
@@ -14,21 +14,32 @@ const SORTS = [
   { v: "views", label: "Most watched" },
 ];
 
+const PAGE = 120;
+
 export function useClips(query: Record<string, string | boolean | undefined>) {
   const [clips, setClips] = useState<Clip[] | null>(null);
+  const [limit, setLimit] = useState(Number(query.limit) || PAGE);
   const [fresh, setFresh] = useState<string | null>(null);
   const [art, setArt] = useState<Record<string, number>>({});
   const qs = useMemo(() => {
     const p = new URLSearchParams();
-    Object.entries(query).forEach(([k, v]) => v !== undefined && v !== "" && v !== false && p.set(k, String(v)));
+    Object.entries(query).forEach(([k, v]) => k !== "limit" && v !== undefined && v !== "" && v !== false && p.set(k, String(v)));
     return p.toString();
   }, [JSON.stringify(query)]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const load = () => api<Clip[]>(`/api/clips?${qs}`).then(setClips).catch(() => setClips([]));
+  const load = (n = limit) => api<Clip[]>(`/api/clips?${qs}&limit=${n}`).then(setClips).catch(() => setClips([]));
   useEffect(() => {
     setClips(null);
-    load();
+    setLimit(Number(query.limit) || PAGE);
+    load(Number(query.limit) || PAGE);
   }, [qs]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hasMore = !query.limit && !!clips && clips.length >= limit;
+  const more = () => {
+    if (!hasMore) return;
+    const n = limit + PAGE;
+    setLimit(n);
+    load(n);
+  };
 
   useLive((e) => {
     if (e.type === "clip") {
@@ -40,7 +51,7 @@ export function useClips(query: Record<string, string | boolean | undefined>) {
       load();
     }
   });
-  return { clips, reload: load, fresh, art };
+  return { clips, reload: () => load(), fresh, art, hasMore, more };
 }
 
 type Props = {
@@ -63,9 +74,8 @@ export function ClipsView({ title, sub, query = {}, header, showGames, trash, al
   const game = params.get("game") || "";
   const { games } = useApp();
   const [sortMenu, setSortMenu] = useState<{ x: number; y: number } | null>(null);
-  const { clips, reload, fresh, art } = useClips({ ...query, q, sort, game: (query.game as string) || game, trash });
-
-  const shown = useMemo(() => (clips && source ? clips.filter((c) => c.source === source) : clips), [clips, source]);
+  const { clips, reload, fresh, art, hasMore, more } = useClips({ ...query, q, sort, source, game: (query.game as string) || game, trash });
+  const shown = clips;
   const set = (k: string, v: string) => {
     const p = new URLSearchParams(params);
     if (v) p.set(k, v);
@@ -117,13 +127,29 @@ export function ClipsView({ title, sub, query = {}, header, showGames, trash, al
           empty ?? <Empty icon={<Film />} title="No clips here" />
         )
       ) : (
-        <ClipGrid clips={shown} trash={trash} albumId={albumId} freshId={fresh} art={art} onChanged={reload} />
+        <>
+          <ClipGrid clips={shown} trash={trash} albumId={albumId} freshId={fresh} art={art} onChanged={reload} />
+          {hasMore && <LoadMore onVisible={more} />}
+        </>
       )}
       {sortMenu && (
         <Menu x={sortMenu.x} y={sortMenu.y} onClose={() => setSortMenu(null)} items={SORTS.map((s) => ({ label: s.label, onClick: () => set("sort", s.v === "newest" ? "" : s.v) }))} />
       )}
     </div>
   );
+}
+
+/** Loads the next page when it scrolls into view. */
+function LoadMore({ onVisible }: { onVisible: () => void }) {
+  const el = useRef<HTMLDivElement>(null);
+  const cb = useRef(onVisible);
+  cb.current = onVisible;
+  useEffect(() => {
+    const io = new IntersectionObserver((es) => es.some((e) => e.isIntersecting) && cb.current(), { rootMargin: "600px" });
+    if (el.current) io.observe(el.current);
+    return () => io.disconnect();
+  }, []);
+  return <div ref={el} className="load-more"><span className="skeleton" /></div>;
 }
 
 export function AllClips() {
