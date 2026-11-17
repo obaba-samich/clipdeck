@@ -22,7 +22,7 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from . import hotkeys, media
@@ -338,6 +338,24 @@ def create_app(core: Core | None = None) -> FastAPI:
         core.events.emit("updated", clip=public_clip(new))
         return public_clip(new)
 
+    @app.post("/api/upload")
+    async def upload(file: UploadFile = File(...), game: str = Form("Imported")):
+        name = Path(file.filename or "video.mp4").name
+        ext = Path(name).suffix.lower()
+        if ext not in (".mp4", ".mov", ".mkv", ".webm", ".m4v"):
+            raise HTTPException(400, "That isn't a video file Clipdeck can import")
+        dst = core.recorder.incoming / f"upload-{secrets.token_hex(4)}{ext}"
+        with dst.open("wb") as out:
+            while chunk := await file.read(4 * 1024 * 1024):
+                out.write(chunk)
+        try:
+            clip = await asyncio.to_thread(lib.ingest, dst, game=(game.strip() or "Imported")[:80],
+                                           source="import", title=Path(name).stem[:120])
+        except Exception as e:
+            dst.unlink(missing_ok=True)
+            raise HTTPException(400, f"Couldn't import {name}: {e}")
+        return public_clip(clip)
+
     @app.post("/api/clips/{clip_id}/view")
     def viewed(clip_id: str):
         db.add_view(clip_id)
@@ -514,6 +532,17 @@ def create_app(core: Core | None = None) -> FastAPI:
             await asyncio.to_thread(media.strip, Path(c["path"]), tmp, c["duration"])
             tmp.replace(out)
         return FileResponse(out, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+    @app.get("/media/frame/{clip_id}")
+    async def frame(clip_id: str, t: float = 0.0):
+        c = get(clip_id)
+        t = max(0.0, min(t, max(c["duration"] - 0.05, 0)))
+        out = EXPORTS / f"frame-{clip_id}-{t:.3f}.png"
+        if not out.exists():
+            EXPORTS.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(media.frame, Path(c["path"]), out, t)
+        name = "".join(ch for ch in c["title"] if ch not in '\\/:*?"<>|')[:60] or "frame"
+        return FileResponse(out, media_type="image/png", filename=f"{name} {t:.1f}s.png")
 
     @app.get("/media/cover/{appid}")
     def cover(appid: str):
