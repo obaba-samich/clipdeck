@@ -64,7 +64,8 @@ for s in 64 128 256 512; do
 done
 mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps" "$HOME/.local/share/applications"
 cp web/public/icons/icon.svg "$HOME/.local/share/icons/hicolor/scalable/apps/clipdeck.svg"
-sed "s#@LAUNCHER@#$HOME/.local/bin/clipdeck#g" desktop/clipdeck.desktop > "$HOME/.local/share/applications/clipdeck.desktop"
+rm -f "$HOME/.local/share/applications/clipdeck.desktop"  # old name, from before the native window
+sed "s#@LAUNCHER@#$HOME/.local/bin/clipdeck#g" desktop/com.pizza.Clipdeck.desktop > "$HOME/.local/share/applications/com.pizza.Clipdeck.desktop"
 command -v update-desktop-database >/dev/null && update-desktop-database -q "$HOME/.local/share/applications" || true
 gtk-update-icon-cache -q "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
 echo "Clipdeck is in your app launcher now."

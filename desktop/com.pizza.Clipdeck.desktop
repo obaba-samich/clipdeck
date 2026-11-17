@@ -8,7 +8,9 @@ Icon=clipdeck
 Terminal=false
 Categories=AudioVideo;Video;Recorder;Game;
 Keywords=clip;replay;record;medal;gameplay;
-StartupWMClass=chrome-localhost__-Default
+StartupWMClass=com.pizza.Clipdeck
+StartupNotify=true
+SingleMainWindow=true
 Actions=clip;
 
 [Desktop Action clip]
