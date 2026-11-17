@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft, Check, Copy, Download, ExternalLink, FolderOpen, FolderPlus, Link2, Maximize, Pause, Play, Repeat,
-  RotateCcw, Scissors, Send, SkipBack, SkipForward, Star, Trash2, Volume2, VolumeX, X,
+  ArrowLeft, Camera, Check, Copy, Download, ExternalLink, FolderOpen, FolderPlus, Link2, Maximize, Pause, Play, Repeat,
+  RotateCcw, Scissors, Send, SkipBack, SkipForward, Star, Trash2, Volume2, VolumeX, Wand2, X,
 } from "lucide-react";
 import { Album, api, Clip, fmtDate, fmtSize, fmtTime, media, SOURCE_LABEL, useLive } from "../api";
 import { GameIcon } from "../components/ClipGrid";
@@ -286,6 +286,8 @@ export function ClipView() {
           <button className={`btn sm ${loop ? "" : "ghost"}`} onClick={() => setLoop(!loop)} title="Loop the trimmed part"><Repeat />Loop</button>
           <button className="btn sm ghost" onClick={() => { const i = (SPEEDS.indexOf(speed) + 1) % SPEEDS.length; setSpeed(SPEEDS[i]); if (video.current) video.current.playbackRate = SPEEDS[i]; }} title="Playback speed">{speed}×</button>
           <button className="btn sm icon ghost" onClick={() => setMuted(!muted)} aria-label="Mute">{muted ? <VolumeX /> : <Volume2 />}</button>
+          <a className="btn sm icon ghost" href={`/media/frame/${id}?t=${t.toFixed(3)}`} aria-label="Save this frame as an image" title="Save frame as image"><Camera /></a>
+          <button className="btn sm" onClick={() => nav(`/edit?clips=${id}`)} title="Open in the editor"><Wand2 />Edit</button>
           <button className="btn sm icon ghost" onClick={fullscreen} aria-label="Fullscreen"><Maximize /></button>
         </div>
 
