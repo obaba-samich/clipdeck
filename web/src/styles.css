@@ -536,7 +536,7 @@ h2.section a:hover { color: var(--text); }
 .ed-body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; padding: 0 var(--gutter) 28px; min-height: 0; }
 .ed-main { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .ed-stage-wrap { background: #050608; border-radius: var(--r-lg); border: 1px solid var(--line); display: grid; place-items: center; padding: 14px; height: min(58vh, 620px); }
-.ed-stage { position: relative; height: 100%; max-width: 100%; overflow: hidden; background: #000; border-radius: 6px; container-type: size; }
+.ed-stage { position: relative; flex: none; overflow: hidden; background: #000; border-radius: 6px; container-type: size; }
 .ed-stage.fit-bars { background: #000; }
 .ed-video { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ed-blurbg { position: absolute; inset: -10%; width: 120%; height: 120%; object-fit: cover; }

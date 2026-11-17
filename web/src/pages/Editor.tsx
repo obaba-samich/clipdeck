@@ -72,7 +72,9 @@ export function Editor() {
   const video = useRef<HTMLVideoElement>(null);
   const mic = useRef<HTMLAudioElement>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const [stageH, setStageH] = useState(360);
+  const wrap = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ w: 640, h: 360 });
+  const stageH = box.h;
   const curSeg = useRef<string | null>(null);
 
   /* ---------- load ---------- */
@@ -250,13 +252,22 @@ export function Editor() {
     showFrame(nt, playing);
   };
 
+  // Fit the preview frame inside the available space at the project's exact shape.
   useEffect(() => {
-    const el = stage.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setStageH(el.clientHeight));
+    const el = wrap.current;
+    if (!el || !p) return;
+    const fit = () => {
+      const r = ASPECT_RATIO[p.aspect];
+      const W = el.clientWidth - 28;
+      const H = el.clientHeight - 28;
+      const w = Math.min(W, H * r);
+      setBox({ w: Math.floor(w), h: Math.floor(w / r) });
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [p?.aspect]);
+  }, [p?.aspect, !!p]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ---------- keyboard ---------- */
 
@@ -345,7 +356,6 @@ export function Editor() {
     p.fade_in && T < p.fade_in ? 1 - T / p.fade_in : 0,
     p.fade_out && T > total - p.fade_out ? (T - (total - p.fade_out)) / p.fade_out : 0,
   );
-  const ratio = ASPECT_RATIO[p.aspect];
 
   return (
     <div className="editor">
@@ -387,8 +397,8 @@ export function Editor() {
 
       <div className="ed-body">
         <div className="ed-main">
-          <div className="ed-stage-wrap" onClick={() => setSel(null)}>
-            <div ref={stage} className={`ed-stage fit-${p.fit}`} style={{ aspectRatio: String(ratio) }}>
+          <div className="ed-stage-wrap" ref={wrap} onClick={() => setSel(null)}>
+            <div ref={stage} className={`ed-stage fit-${p.fit}`} style={{ width: box.w, height: box.h }}>
               {p.fit === "blur" && curClip && <img className="ed-blurbg" src={media.thumb(curClip.id)} alt="" style={{ filter: `blur(24px) brightness(.75) ${filter}` }} />}
               <video
                 ref={video}
