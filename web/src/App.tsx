@@ -6,6 +6,8 @@ import { ToastProvider } from "./components/ui";
 import { AlbumPage, Albums, GamePage, Games, Home } from "./pages/Browse";
 import { AllClips, Favorites, Trash } from "./pages/Clips";
 import { ClipView } from "./pages/ClipView";
+import { Editor } from "./pages/Editor";
+import { Edits } from "./pages/Edits";
 import { Login } from "./pages/Login";
 import { Settings } from "./pages/Settings";
 
@@ -38,6 +40,9 @@ export default function App() {
             <Route path="/trash" element={<Trash />} />
             <Route path="/clip/:id" element={<ClipView />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/edits" element={<Edits />} />
+            <Route path="/edit" element={<Editor key="new" />} />
+            <Route path="/edit/:pid" element={<Editor />} />
             <Route path="*" element={<Home />} />
           </Routes>
         </Layout>

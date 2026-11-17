@@ -47,6 +47,12 @@ export function Layout({ children }: { children: ReactNode }) {
       }
     }
     if (e.type === "removed" || e.type === "bulk" || e.type === "updated") refresh();
+    if (e.type === "render" && e.job.state === "done" && !loc.pathname.startsWith("/edit/")) {
+      toast({ title: "Export finished", body: e.job.name, icon: <Clapperboard />, onClick: () => nav(e.job.clip_id ? `/clip/${e.job.clip_id}` : "/edits") });
+    }
+    if (e.type === "render" && e.job.state === "error" && !loc.pathname.startsWith("/edit/")) {
+      toast({ title: "Export failed", body: e.job.name, error: true, onClick: () => nav("/edits") });
+    }
     if (e.type === "heard") toast({ title: `Heard “${e.phrase}”`, body: "Saving clip…", icon: <Mic /> });
   });
 
@@ -82,6 +88,7 @@ function Sidebar({ status, games }: { status: Status | null; games: Game[] }) {
       <NavLink to="/clips" className="nav-item"><Film /><span className="label">All clips</span><span className="count">{s?.clips ?? ""}</span></NavLink>
       <NavLink to="/favorites" className="nav-item"><Star /><span className="label">Favorites</span><span className="count">{s?.favorites || ""}</span></NavLink>
       <NavLink to="/albums" className="nav-item"><FolderOpen /><span className="label">Albums</span></NavLink>
+      <NavLink to="/edits" className="nav-item"><Clapperboard /><span className="label">Edits</span></NavLink>
       <NavLink to="/games" end className="nav-item"><Gamepad2 /><span className="label">Games</span></NavLink>
       <div className="nav-label">Your games</div>
       <div className="nav-games">
