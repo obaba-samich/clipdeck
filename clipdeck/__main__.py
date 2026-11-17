@@ -23,7 +23,6 @@ def _call(method: str, path: str, body: dict | None = None) -> dict:
 
 def _open() -> int:
     """Start the service if it's not running, then open the library in its own app window."""
-    import shutil
     import subprocess
     import time
 
@@ -39,15 +38,9 @@ def _open() -> int:
                 break
             except (urllib.error.URLError, OSError):
                 time.sleep(0.25)
-    # Chrome's --app mode gives a window with no tabs or address bar, like a real app.
-    candidates = [
-        ["flatpak", "run", "com.google.Chrome", f"--app={url}"] if shutil.which("flatpak")
-        and subprocess.run(["flatpak", "info", "com.google.Chrome"], capture_output=True).returncode == 0 else None,
-        [shutil.which(b), f"--app={url}"] if (b := next((b for b in ("google-chrome", "chromium", "chromium-browser", "brave-browser") if shutil.which(b)), None)) else None,
-        ["xdg-open", url],
-    ]
-    cmd = next(c for c in candidates if c)
-    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    from .launch import open_window
+
+    open_window(url)
     return 0
 
 
