@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowDownUp, Film, Mic, Scissors, Search, Sparkles, Star, Trash2, Upload } from "lucide-react";
+import { ArrowDownUp, Clapperboard, Film, Mic, Scissors, Search, Sparkles, Star, Trash2, Upload, Video } from "lucide-react";
 import { api, Clip, fmtSize, useLive } from "../api";
 import { ClipGrid, GameIcon, SkeletonGrid } from "../components/ClipGrid";
 import { useApp } from "../components/Layout";
@@ -97,6 +97,8 @@ export function ClipsView({ title, sub, query = {}, header, showGames, trash, al
           <button className={`chip${source === "voice" ? " on" : ""}`} onClick={() => set("source", source === "voice" ? "" : "voice")}><Mic size={14} />Voice</button>
           <button className={`chip${source === "hype" ? " on" : ""}`} onClick={() => set("source", source === "hype" ? "" : "hype")}><Sparkles size={14} />Auto</button>
           <button className={`chip${source === "trim" ? " on" : ""}`} onClick={() => set("source", source === "trim" ? "" : "trim")}><Scissors size={14} />Trimmed</button>
+          <button className={`chip${source === "record" ? " on" : ""}`} onClick={() => set("source", source === "record" ? "" : "record")}><Video size={14} />Recordings</button>
+          <button className={`chip${source === "edit" ? " on" : ""}`} onClick={() => set("source", source === "edit" ? "" : "edit")}><Clapperboard size={14} />Edits</button>
           {showGames &&
             games.map((g) => (
               <button key={g.game} className={`chip${game === g.game ? " on" : ""}`} onClick={() => set("game", game === g.game ? "" : g.game)}>

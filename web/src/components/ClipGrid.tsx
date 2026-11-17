@@ -1,10 +1,12 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, CheckSquare, Clapperboard, Download, FolderPlus, Gamepad2, Link2, Mic, Pencil, RotateCcw, Scissors, Smartphone, Sparkles, Star, Trash2, X } from "lucide-react";
+import { Check, CheckSquare, Clapperboard, Video, Download, FolderPlus, Gamepad2, Link2, Mic, Pencil, RotateCcw, Scissors, Smartphone, Sparkles, Star, Trash2, X } from "lucide-react";
 import { Album, api, Clip, clipLength, fmtAgo, fmtDuration, initials, media } from "../api";
 import { Menu, MenuItem, Modal, useConfirm, usePrompt, useToast } from "./ui";
 
 const SRC_ICON: Record<string, JSX.Element> = {
+  record: <Video />,
+  edit: <Clapperboard />,
   voice: <Mic />,
   hype: <Sparkles />,
   phone: <Smartphone />,
