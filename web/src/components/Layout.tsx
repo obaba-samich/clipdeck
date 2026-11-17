@@ -46,7 +46,7 @@ export function Layout({ children }: { children: ReactNode }) {
         );
       }
     }
-    if (e.type === "removed" || e.type === "bulk" || e.type === "updated") refresh();
+    if (e.type === "removed" || e.type === "bulk" || e.type === "updated" || e.type === "recording") refresh();
     if (e.type === "render" && e.job.state === "done" && !loc.pathname.startsWith("/edit/")) {
       toast({ title: "Export finished", body: e.job.name, icon: <Clapperboard />, onClick: () => nav(e.job.clip_id ? `/clip/${e.job.clip_id}` : "/edits") });
     }
@@ -181,11 +181,46 @@ function TopBar({ status, scrolled }: { status: Status | null; scrolled: boolean
       </label>
       <div className="spacer" />
       <RecPill status={status} />
+      <RecordButton status={status} />
       <button className="btn primary desktop-only" onClick={clipNow} disabled={status?.recorder.state !== "recording"} title="Save the replay buffer now">
         <Scissors />
         Clip now
       </button>
     </header>
+  );
+}
+
+export function RecordButton({ status }: { status: Status | null }) {
+  const toast = useToast();
+  const { refresh } = useApp();
+  const since = status?.recorder.session_since;
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!since) return;
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [since]);
+  const toggle = async () => {
+    try {
+      const r = await api<{ ok: boolean; recording?: boolean; reason?: string }>("/api/record", { method: "POST", json: { source: "web" } });
+      if (!r.ok) toast({ title: "Can't record", body: r.reason, error: true });
+      refresh();
+    } catch (e) {
+      toast({ title: "Can't record", body: String((e as Error).message), error: true });
+    }
+  };
+  const secs = since ? Math.max(0, Math.floor(Date.now() / 1000 - since)) : 0;
+  const t = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+  return (
+    <button
+      className={`btn rec-btn${since ? " on" : ""}`}
+      onClick={toggle}
+      disabled={status?.recorder.state !== "recording"}
+      title={since ? "Stop the full recording" : "Start a full recording (alongside the replay buffer)"}
+    >
+      <span className="rdot" />
+      {since ? <span className="tnum">{t}</span> : <span className="hide-sm">Record</span>}
+    </button>
   );
 }
 

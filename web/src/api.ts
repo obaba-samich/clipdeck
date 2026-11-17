@@ -28,7 +28,7 @@ export type Game = { game: string; steam_appid: string | null; count: number; si
 export type Album = { id: string; name: string; created_at: number; count: number; cover_id: string | null };
 
 export type Status = {
-  recorder: { state: "stopped" | "starting" | "recording" | "error"; error: string; since: number | null; buffer_seconds: number; log: string[] };
+  recorder: { state: "stopped" | "starting" | "recording" | "error"; error: string; since: number | null; session_since: number | null; buffer_seconds: number; log: string[] };
   listener: { state: "off" | "listening" | "error"; error: string; level_db: number; last_heard: string; model: boolean };
   game: string;
   steam_appid: string | null;
@@ -50,7 +50,7 @@ export type Settings = {
   hype: { enabled: boolean; threshold_db: number; min_ms: number; cooldown_s: number };
   feedback: { sound: boolean; notification: boolean; volume: number };
   storage: { max_gb: number; auto_clean: boolean; trash_days: number };
-  hotkeys: { clip: string; clip_long: string };
+  hotkeys: { clip: string; clip_long: string; record: string };
   server: { port: number; lan: boolean; passcode: string };
   share: { discord_webhook: string };
 };
@@ -115,7 +115,8 @@ export type LiveEvent =
   | { type: "game"; game: string }
   | { type: "settings" }
   | { type: "bulk" }
-  | { type: "render"; job: RenderJob };
+  | { type: "render"; job: RenderJob }
+  | { type: "recording"; on: boolean };
 
 type Handler = (e: LiveEvent) => void;
 const handlers = new Set<Handler>();
@@ -220,6 +221,7 @@ export const SOURCE_LABEL: Record<string, string> = {
   import: "Imported",
   trim: "Trimmed",
   edit: "Editor",
+  record: "Full recording",
 };
 
 /* ---------- editor ---------- */
