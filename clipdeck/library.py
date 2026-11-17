@@ -252,5 +252,32 @@ class Library:
         self._work.put(("art", new["id"]))
         return new
 
+    def move_root(self, old: Path, new: Path) -> int:
+        """Move every clip under `old` to the same place under `new` (game folders, trash)."""
+        new.mkdir(parents=True, exist_ok=True)
+        moved = 0
+        for clip in self.db.list_clips(limit=1_000_000) + self.db.list_clips(trash=True, limit=1_000_000):
+            src = Path(clip["path"])
+            try:
+                rel = src.relative_to(old)
+            except ValueError:
+                continue
+            dst = new / rel
+            if dst.exists():
+                dst = self._unique(dst.parent, dst.stem, dst.suffix)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if src.exists():
+                shutil.move(src, dst)
+            self.db.update_clip(clip["id"], path=str(dst))
+            moved += 1
+        # Tidy up game folders left empty.
+        for d in sorted((p for p in old.rglob("*") if p.is_dir()), key=lambda p: len(p.parts), reverse=True):
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+        self.events.emit("bulk")
+        return moved
+
     def refresh_art(self, clip_id: str) -> None:
         self._work.put(("art", clip_id))
