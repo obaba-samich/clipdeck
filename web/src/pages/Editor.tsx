@@ -367,7 +367,7 @@ export function Editor() {
         <button className="btn icon ghost" onClick={undo} disabled={!history.current.past.length} aria-label="Undo" title="Undo (Ctrl+Z)"><Undo2 /></button>
         <button className="btn icon ghost" onClick={redo} disabled={!history.current.future.length} aria-label="Redo" title="Redo (Ctrl+Shift+Z)"><Redo2 /></button>
         <button className="btn primary" onClick={() => setExportOpen(true)} disabled={!p.segments.length || job?.state === "running" || job?.state === "queued"}>
-          <Upload />Export
+          <Upload /><span className="hide-sm">Export</span>
         </button>
       </header>
 
@@ -445,9 +445,9 @@ export function Editor() {
             <button className="btn icon" onClick={playing ? pause : play} aria-label={playing ? "Pause" : "Play"}>{playing ? <Pause /> : <Play />}</button>
             <span className="time">{fmtTime(T)} / {fmtTime(total)}</span>
             <div className="grow" />
-            <button className="btn sm" onClick={splitAt} title="Split at playhead (S)"><Split />Split</button>
-            <button className="btn sm" onClick={addText} title="Add text (T)"><Type />Text</button>
-            <button className="btn sm" onClick={() => setAdding(true)}><Plus />Clip</button>
+            <button className="btn sm" onClick={splitAt} title="Split at playhead (S)"><Split /><span className="hide-sm">Split</span></button>
+            <button className="btn sm" onClick={addText} title="Add text (T)"><Type /><span className="hide-sm">Text</span></button>
+            <button className="btn sm" onClick={() => setAdding(true)}><Plus /><span className="hide-sm">Clip</span></button>
           </div>
 
           <Timeline

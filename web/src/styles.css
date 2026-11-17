@@ -644,12 +644,16 @@ h2.section a:hover { color: var(--text); }
 .render-row .bar { flex: 1; margin: 0; }
 
 @media (max-width: 1100px) {
-  .ed-body { grid-template-columns: 1fr; }
+  .ed-body { grid-template-columns: minmax(0, 1fr); }
   .ed-panel { position: static; max-height: none; }
 }
 @media (max-width: 820px) {
   .ed-top { padding-top: 8px; }
-  .ed-name { width: auto; flex: 1; font-size: 16px; }
+  .ed-name { width: auto; flex: 1; min-width: 0; font-size: 16px; }
+  .ed-top { gap: 2px; }
+  .ed-top .grow { display: none; }
+  .ed-transport { flex-wrap: nowrap; }
+  .ed-transport .btn.sm { width: 34px; height: 34px; padding: 0; }
   .ed-saved { display: none; }
   .ed-stage-wrap { height: 44vh; padding: 8px; margin: 0 calc(var(--gutter) * -1); border-radius: 0; border-left: 0; border-right: 0; }
   .ed-transport .btn.sm { padding: 0 8px; }
