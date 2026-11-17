@@ -49,6 +49,7 @@ def heard_sound() -> Path:
 class Feedback:
     def __init__(self, config):
         self.config = config
+        self.tray = None  # set by Core; gives notifications with buttons
 
     def _play(self, path: Path) -> None:
         f = self.config["feedback"]
@@ -68,12 +69,36 @@ class Feedback:
     def saved(self, clip: dict, thumb: Path | None = None) -> None:
         self._play(saved_sound())
         secs = round(clip["duration"])
-        how = {"voice": "Voice clip", "hype": "Auto clip", "phone": "Clipped from phone"}.get(clip["source"], "Clip saved")
-        self._notify(how, f"{clip['game']} · {secs}s", icon=str(thumb) if thumb and thumb.exists() else "camera-video")
+        how = {"voice": "Voice clip saved", "hype": "Auto clip saved", "phone": "Clipped from phone"}.get(clip["source"], "Clip saved")
+        body = f"{clip['game']} · {secs}s"
+        if not self.config["feedback"]["notification"]:
+            return
+        if self.tray and self.tray.notify(how, body, icon=str(thumb) if thumb else "", clip_id=clip["id"],
+                                          actions=["default", "Open", "open", "Open", "edit", "Edit", "delete", "Delete"]):
+            return
+        self._notify(how, body, icon=str(thumb) if thumb and thumb.exists() else "camera-video")
+
+    def alert(self, title: str, body: str, action: str = "settings", label: str = "Settings") -> None:
+        """Something needs attention (recorder stopped, disk nearly full)."""
+        if self.tray and self.tray.notify(title, body, actions=["default", label, action, label], urgency=2):
+            return
+        self._notify(title, body, icon="dialog-warning", urgency="normal")
+
+    def exported(self, job: dict) -> None:
+        if not self.config["feedback"]["notification"]:
+            return
+        if job["state"] == "done":
+            if self.tray and self.tray.notify("Export finished", job["name"], clip_id=job.get("clip_id"),
+                                              actions=["default", "Open", "open", "Open"] if job.get("clip_id")
+                                              else ["default", "Edits", "edits", "Edits"]):
+                return
+            self._notify("Export finished", job["name"])
+        elif job["state"] == "error":
+            self.alert("Export failed", job["name"], action="edits", label="Edits")
 
     def heard(self) -> None:
         self._play(heard_sound())
 
     def failed(self, why: str) -> None:
         self._play(error_sound())
-        self._notify("Couldn't save clip", why, icon="dialog-error", urgency="normal")
+        self.alert("Couldn't save clip", why)
