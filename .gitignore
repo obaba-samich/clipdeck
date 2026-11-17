@@ -13,3 +13,4 @@ ios/*.xcodeproj/
 ios/build/
 ios/Payload/
 *.ipa
+clipdeck/assets/
