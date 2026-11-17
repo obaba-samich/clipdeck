@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .config import Config
 from .db import DB
+from .editor import Renderer
 from .feedback import Feedback
 from .games import GameDetector
 from .library import Events, Library
@@ -31,6 +32,7 @@ class Core:
         self.games = GameDetector()
         self.recorder = Recorder(self.config, self._saved)
         self.listener = Listener(self.config, self._voice, self._hype)
+        self.renderer = Renderer(self.db, self.library, self.events, self.db.get_clip)
         self.config.on_change(self._config_changed)
         self._last_save = 0.0
 
