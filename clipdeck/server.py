@@ -25,7 +25,7 @@ from pathlib import Path
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
-from . import hotkeys, media
+from . import editor, hotkeys, media
 from .config import CACHE_DIR
 from .feedback import saved_sound
 from .core import Core
@@ -457,6 +457,72 @@ def create_app(core: Core | None = None) -> FastAPI:
             urllib.request.urlopen(req, timeout=120).read()
         except Exception as e:
             raise HTTPException(502, f"Discord didn't accept it: {e}")
+
+    # editor ------------------------------------------------------------------
+
+    @app.get("/api/projects")
+    def projects():
+        out = []
+        for pr in db.projects():
+            segs = pr["data"].get("segments", [])
+            out.append({"id": pr["id"], "name": pr["name"], "updated_at": pr["updated_at"],
+                        "clips": len(segs), "cover": segs[0]["clip"] if segs else None})
+        return out
+
+    @app.get("/api/projects/{pid}")
+    def project(pid: str):
+        pr = db.get_project(pid)
+        if not pr:
+            raise HTTPException(404, "No such edit")
+        return pr
+
+    @app.put("/api/projects/{pid}")
+    def save_project(pid: str, body: dict = Body(...)):
+        data = editor.normalize(body, db.get_clip)
+        return db.save_project(pid, data["name"], data)
+
+    @app.delete("/api/projects/{pid}")
+    def delete_project(pid: str):
+        db.delete_project(pid)
+        return {"ok": True}
+
+    @app.post("/api/projects/{pid}/render")
+    def render(pid: str, body: dict = Body(...)):
+        data = editor.normalize(body, db.get_clip)
+        db.save_project(pid, data["name"], data)
+        try:
+            return core.renderer.submit(pid, data).public()
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.get("/api/renders")
+    def renders():
+        return [j.public() for j in sorted(core.renderer.jobs.values(), key=lambda j: -j.created)][:20]
+
+    @app.delete("/api/renders/{job_id}")
+    def cancel_render(job_id: str):
+        core.renderer.cancel(job_id)
+        return {"ok": True}
+
+    @app.get("/media/render/{job_id}")
+    def render_file(job_id: str):
+        j = core.renderer.jobs.get(job_id)
+        if not j or not j.file or not Path(j.file).exists():
+            raise HTTPException(404)
+        name = "".join(ch for ch in j.name if ch not in '\\/:*?"<>|')[:80] or "edit"
+        return FileResponse(j.file, media_type="image/gif", filename=f"{name}.gif")
+
+    @app.get("/api/editor/fonts")
+    def fonts():
+        return [{"key": k, "label": v[1]} for k, v in editor.FONTS.items()]
+
+    @app.get("/media/font/{key}")
+    def font(key: str):
+        if key not in editor.FONTS:
+            raise HTTPException(404)
+        f = Path(editor.font_file(key))
+        mt = "font/otf" if f.suffix == ".otf" else "font/ttf"
+        return FileResponse(f, media_type=mt, headers=cache_forever)
 
     # games / albums ----------------------------------------------------------
 
