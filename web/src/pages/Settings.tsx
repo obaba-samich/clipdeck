@@ -313,6 +313,11 @@ export function Settings() {
                   </div>
                 </div>
               )}
+              {navigator.userAgent.includes("ClipdeckApp") && (
+                <Row title="Server address" desc="Home Wi-Fi and Tailscale addresses this app connects to.">
+                  <a className="btn sm" href="clipdeck-app://settings">Change</a>
+                </Row>
+              )}
               <Row title="New passcode" desc="Signs every phone out.">
                 <button className="btn sm" onClick={async () => setData(await api<S>("/api/settings/passcode", { method: "POST" }))}>Change passcode</button>
               </Row>
