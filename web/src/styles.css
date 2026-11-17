@@ -561,16 +561,24 @@ h2.section a:hover { color: var(--text); }
 .ed-ruler span { position: absolute; top: 4px; font-size: 10.5px; color: var(--muted); transform: translateX(3px); font-variant-numeric: tabular-nums; }
 .ed-ruler span::before { content: ""; position: absolute; left: -3px; top: -4px; height: 22px; border-left: 1px solid var(--line-2); }
 .ed-track { position: relative; margin-top: 8px; }
-.ed-track.segs { height: 56px; }
-.ed-track.texts { height: 26px; }
+.ed-track.segs { height: 60px; }
+.ed-track.texts { height: 30px; }
 .ed-block { position: absolute; top: 0; bottom: 0; border-radius: 8px; background-color: var(--panel-3); background-size: auto 100%; background-repeat: repeat-x; border: 2px solid transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); overflow: hidden; cursor: pointer; }
 .ed-block + .ed-block { margin-left: 2px; }
 .ed-block.on { border-color: var(--accent); }
-.ed-block .h, .ed-tbar .h { position: absolute; top: 0; bottom: 0; width: 12px; cursor: ew-resize; z-index: 2; }
+.ed-block .h, .ed-tbar .h { position: absolute; top: 0; bottom: 0; width: 18px; cursor: ew-resize; z-index: 2; touch-action: none; }
+.ed-block .h::before, .ed-tbar .h::before { content: ""; position: absolute; top: -6px; bottom: -6px; left: -8px; right: -8px; } /* bigger invisible grab area */
+.ed-block, .ed-tbar { touch-action: none; }
+.ed-block:hover .h { background: rgba(255, 90, 54, 0.55); }
+.ed-block.live { border-color: var(--accent); z-index: 3; box-shadow: 0 0 0 1px var(--accent), 0 6px 18px rgba(0, 0, 0, 0.5); }
+.ed-tbar.live { z-index: 3; border-color: #fff; }
+.ed-timeline.dragging { cursor: ew-resize; }
+.ed-timeline.dragging * { transition: none !important; }
+.ed-dragtag { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 2px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.8); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
 .ed-block .h.l, .ed-tbar .h.l { left: 0; }
 .ed-block .h.r, .ed-tbar .h.r { right: 0; }
 .ed-block.on .h { background: var(--accent); }
-.ed-block.on .h::after { content: ""; position: absolute; left: 4px; top: 35%; bottom: 35%; width: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.8); }
+.ed-block.on .h::after { content: ""; position: absolute; left: 7px; top: 30%; bottom: 30%; width: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.85); }
 .ed-speedtag { position: absolute; left: 14px; top: 4px; padding: 1px 6px; border-radius: 5px; background: rgba(0, 0, 0, 0.7); font-size: 11px; font-weight: 700; }
 .ed-tbar { position: absolute; top: 0; bottom: 0; border-radius: 6px; background: rgba(176, 124, 255, 0.28); border: 1px solid rgba(176, 124, 255, 0.55); display: flex; align-items: center; padding: 0 14px; font-size: 11.5px; font-weight: 600; overflow: hidden; cursor: grab; }
 .ed-tbar span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

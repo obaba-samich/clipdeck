@@ -246,6 +246,20 @@ export function Editor() {
     if (!playing) showFrame(T);
   }, [p?.segments, clips]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Show one exact source frame while dragging a trim handle (no project change, no re-render).
+  const peek = (clipId: string, src: number) => {
+    const v = video.current;
+    if (!v) return;
+    if (playing) pause();
+    const want = media.clip(clipId);
+    if (!v.src.endsWith(want)) {
+      v.src = want;
+      curSeg.current = null;
+    }
+    if (v.readyState >= 1) v.currentTime = src;
+    else v.addEventListener("loadedmetadata", () => (v.currentTime = src), { once: true });
+  };
+
   const seek = (t: number) => {
     const nt = Math.max(0, Math.min(total, t));
     setT(nt);
@@ -457,6 +471,7 @@ export function Editor() {
             total={total}
             sel={sel}
             onSeek={seek}
+            onPeek={peek}
             onSelect={(s) => {
               setSel(s);
               setTab(s.kind === "seg" ? "clips" : "text");
@@ -755,53 +770,102 @@ function TextEditor({ t, T, total, change, remove }: { t: TextItem; T: number; t
   );
 }
 
-function Timeline({ p, clips, T, total, sel, onSeek, onSelect, onTrimSeg, onMoveText }: {
+type Ghost = { id: string; a: number; b: number };
+type Drag = { kind: string; id: string; x0: number; a: number; b: number; moved: boolean; pointer: number };
+
+function Timeline({ p, clips, T, total, sel, onSeek, onPeek, onSelect, onTrimSeg, onMoveText }: {
   p: Project; clips: Record<string, Clip>; T: number; total: number; sel: { kind: "seg" | "text"; id: string } | null;
-  onSeek: (t: number) => void; onSelect: (s: { kind: "seg" | "text"; id: string }) => void;
+  onSeek: (t: number) => void; onPeek: (clip: string, src: number) => void;
+  onSelect: (s: { kind: "seg" | "text"; id: string }) => void;
   onTrimSeg: (id: string, start: number, end: number, done: boolean) => void;
   onMoveText: (id: string, start: number, end: number, done: boolean) => void;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
-  const drag = useRef<null | { kind: string; id: string; x0: number; a: number; b: number; first: boolean }>(null);
+  // While dragging, only this local "ghost" changes; the edit itself is updated once on release.
+  const [ghost, setGhost] = useState<Ghost | null>(null);
+  const [scrubT, setScrubT] = useState<number | null>(null);
+  const drag = useRef<Drag | null>(null);
+  const frame = useRef(0);
+  const pending = useRef<(() => void) | null>(null);
   const lay = layout(p);
   const pxPerSec = () => (el.current ? (el.current.clientWidth * zoom) / Math.max(total, 1) : 50);
   const timeAt = (clientX: number) => {
     const r = el.current!.getBoundingClientRect();
-    return ((clientX - r.left + el.current!.scrollLeft) / (r.width * zoom)) * total;
+    return Math.max(0, Math.min(total, ((clientX - r.left + el.current!.scrollLeft) / (r.width * zoom)) * total));
   };
   const pct = (t: number) => `${(t / Math.max(total, 0.001)) * 100}%`;
 
-  const begin = (e: React.PointerEvent, kind: string, id: string, a: number, b: number) => {
-    e.stopPropagation();
-    drag.current = { kind, id, x0: e.clientX, a, b, first: true };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-  const moveDrag = (e: React.PointerEvent) => {
-    const d = drag.current;
-    if (!d) return;
-    const dt = (e.clientX - d.x0) / pxPerSec();
-    const first = d.first;
-    d.first = false;
-    if (d.kind === "segL" || d.kind === "segR") {
-      const s = p.segments.find((x) => x.id === d.id)!;
-      const c = clips[s.clip];
-      const max = c?.duration ?? s.end;
-      if (d.kind === "segL") onTrimSeg(d.id, Math.max(0, Math.min(d.a + dt * s.speed, s.end - 0.2)), s.end, first);
-      else onTrimSeg(d.id, s.start, Math.min(max, Math.max(d.b + dt * s.speed, s.start + 0.2)), first);
-    } else if (d.kind === "text") {
-      const len = d.b - d.a;
-      const a = Math.max(0, Math.min(total - len, d.a + dt));
-      onMoveText(d.id, a, a + len, first);
-    } else if (d.kind === "textL") {
-      onMoveText(d.id, Math.max(0, Math.min(d.a + dt, d.b - 0.2)), d.b, first);
-    } else if (d.kind === "textR") {
-      onMoveText(d.id, d.a, Math.min(total, Math.max(d.b + dt, d.a + 0.2)), first);
-    } else if (d.kind === "seek") {
-      onSeek(timeAt(e.clientX));
+  // At most one preview update per screen frame.
+  const later = (fn: () => void) => {
+    pending.current = fn;
+    if (!frame.current) {
+      frame.current = requestAnimationFrame(() => {
+        frame.current = 0;
+        pending.current?.();
+        pending.current = null;
+      });
     }
   };
-  const end = () => (drag.current = null);
+
+  const begin = (e: React.PointerEvent, kind: string, id: string, a: number, b: number) => {
+    e.stopPropagation();
+    e.preventDefault();
+    drag.current = { kind, id, x0: e.clientX, a, b, moved: false, pointer: e.pointerId };
+    el.current?.setPointerCapture(e.pointerId);
+    if (kind !== "seek") setGhost({ id, a, b });
+  };
+
+  const move = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.pointer) return;
+    if (Math.abs(e.clientX - d.x0) > 2) d.moved = true;
+    const dt = (e.clientX - d.x0) / pxPerSec();
+    if (d.kind === "seek") {
+      const t = timeAt(e.clientX);
+      setScrubT(t);
+      later(() => onSeek(t));
+      return;
+    }
+    if (d.kind === "segL" || d.kind === "segR") {
+      const s = p.segments.find((x) => x.id === d.id)!;
+      const max = clips[s.clip]?.duration ?? s.end;
+      const a = d.kind === "segL" ? Math.max(0, Math.min(d.a + dt * s.speed, d.b - 0.2)) : d.a;
+      const b = d.kind === "segR" ? Math.min(max, Math.max(d.b + dt * s.speed, d.a + 0.2)) : d.b;
+      setGhost({ id: d.id, a, b });
+      later(() => onPeek(s.clip, d.kind === "segL" ? a : Math.max(a, b - 0.04)));
+      return;
+    }
+    let a = d.a;
+    let b = d.b;
+    if (d.kind === "text") {
+      const len = d.b - d.a;
+      a = Math.max(0, Math.min(total - len, d.a + dt));
+      b = a + len;
+    } else if (d.kind === "textL") a = Math.max(0, Math.min(d.a + dt, d.b - 0.2));
+    else if (d.kind === "textR") b = Math.min(total, Math.max(d.b + dt, d.a + 0.2));
+    setGhost({ id: d.id, a, b });
+    later(() => onSeek(d.kind === "textR" ? b - 0.02 : a + 0.02));
+  };
+
+  const finish = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.pointer) return;
+    drag.current = null;
+    if (d.kind === "seek") {
+      const t = timeAt(e.clientX);
+      setScrubT(null);
+      onSeek(t);
+      return;
+    }
+    const g = ghost;
+    setGhost(null);
+    if (!g || !d.moved) return;
+    if (d.kind.startsWith("seg")) onTrimSeg(g.id, g.a, g.b, true);
+    else onMoveText(g.id, g.a, g.b, true);
+  };
+
+  const headT = scrubT ?? T;
 
   return (
     <div className="ed-timeline-wrap">
@@ -811,11 +875,11 @@ function Timeline({ p, clips, T, total, sel, onSeek, onSelect, onTrimSeg, onMove
       </div>
       <div
         ref={el}
-        className="ed-timeline"
-        onPointerDown={(e) => { drag.current = { kind: "seek", id: "", x0: e.clientX, a: 0, b: 0, first: true }; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); onSeek(timeAt(e.clientX)); }}
-        onPointerMove={moveDrag}
-        onPointerUp={end}
-        onPointerCancel={end}
+        className={`ed-timeline${ghost || scrubT !== null ? " dragging" : ""}`}
+        onPointerDown={(e) => begin(e, "seek", "", 0, 0)}
+        onPointerMove={move}
+        onPointerUp={finish}
+        onPointerCancel={finish}
       >
         <div className="ed-tracks" style={{ width: `${zoom * 100}%` }}>
           <div className="ed-ruler">
@@ -824,34 +888,45 @@ function Timeline({ p, clips, T, total, sel, onSeek, onSelect, onTrimSeg, onMove
             ))}
           </div>
           <div className="ed-track segs">
-            {lay.map(({ seg, at, len }) => (
-              <div
-                key={seg.id}
-                className={`ed-block${sel?.id === seg.id ? " on" : ""}`}
-                style={{ left: pct(at), width: pct(len), backgroundImage: `url(/media/strip/${seg.clip})` }}
-                onPointerDown={(e) => { e.stopPropagation(); onSelect({ kind: "seg", id: seg.id }); onSeek(timeAt(e.clientX)); }}
-              >
-                {seg.speed !== 1 && <span className="ed-speedtag">{seg.speed}×</span>}
-                <i className="h l" onPointerDown={(e) => { onSelect({ kind: "seg", id: seg.id }); begin(e, "segL", seg.id, seg.start, seg.end); }} />
-                <i className="h r" onPointerDown={(e) => { onSelect({ kind: "seg", id: seg.id }); begin(e, "segR", seg.id, seg.start, seg.end); }} />
-              </div>
-            ))}
+            {lay.map(({ seg, at, len }) => {
+              const g = ghost?.id === seg.id ? ghost : null;
+              const left = g ? at + (g.a - seg.start) / seg.speed : at;
+              const width = g ? (g.b - g.a) / seg.speed : len;
+              return (
+                <div
+                  key={seg.id}
+                  className={`ed-block${sel?.id === seg.id ? " on" : ""}${g ? " live" : ""}`}
+                  style={{ left: pct(left), width: pct(width), backgroundImage: `url(/media/strip/${seg.clip})` }}
+                  onPointerDown={(e) => { onSelect({ kind: "seg", id: seg.id }); begin(e, "seek", "", 0, 0); onSeek(timeAt(e.clientX)); }}
+                >
+                  {seg.speed !== 1 && <span className="ed-speedtag">{seg.speed}×</span>}
+                  {g && <span className="ed-dragtag">{fmtTime((g.b - g.a) / seg.speed)}</span>}
+                  <i className="h l" onPointerDown={(e) => { onSelect({ kind: "seg", id: seg.id }); begin(e, "segL", seg.id, seg.start, seg.end); }} />
+                  <i className="h r" onPointerDown={(e) => { onSelect({ kind: "seg", id: seg.id }); begin(e, "segR", seg.id, seg.start, seg.end); }} />
+                </div>
+              );
+            })}
           </div>
           <div className="ed-track texts">
-            {p.texts.map((t) => (
-              <div
-                key={t.id}
-                className={`ed-tbar${sel?.id === t.id ? " on" : ""}`}
-                style={{ left: pct(t.start), width: pct(Math.max(0.1, t.end - t.start)) }}
-                onPointerDown={(e) => { onSelect({ kind: "text", id: t.id }); begin(e, "text", t.id, t.start, t.end); }}
-              >
-                <i className="h l" onPointerDown={(e) => { onSelect({ kind: "text", id: t.id }); begin(e, "textL", t.id, t.start, t.end); }} />
-                <span>{t.text}</span>
-                <i className="h r" onPointerDown={(e) => { onSelect({ kind: "text", id: t.id }); begin(e, "textR", t.id, t.start, t.end); }} />
-              </div>
-            ))}
+            {p.texts.map((t) => {
+              const g = ghost?.id === t.id ? ghost : null;
+              const a = g ? g.a : t.start;
+              const b = g ? g.b : t.end;
+              return (
+                <div
+                  key={t.id}
+                  className={`ed-tbar${sel?.id === t.id ? " on" : ""}${g ? " live" : ""}`}
+                  style={{ left: pct(a), width: pct(Math.max(0.1, b - a)) }}
+                  onPointerDown={(e) => { onSelect({ kind: "text", id: t.id }); begin(e, "text", t.id, t.start, t.end); }}
+                >
+                  <i className="h l" onPointerDown={(e) => { onSelect({ kind: "text", id: t.id }); begin(e, "textL", t.id, t.start, t.end); }} />
+                  <span>{t.text}</span>
+                  <i className="h r" onPointerDown={(e) => { onSelect({ kind: "text", id: t.id }); begin(e, "textR", t.id, t.start, t.end); }} />
+                </div>
+              );
+            })}
           </div>
-          <div className="ed-playhead" style={{ left: pct(T) }} />
+          <div className="ed-playhead" style={{ left: pct(headT) }} />
         </div>
       </div>
     </div>
