@@ -1,9 +1,10 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Info, Keyboard, LogOut, RefreshCw, ShieldAlert, Volume2 } from "lucide-react";
+import { Folder, FolderOpen, Info, Keyboard, LogOut, RefreshCw, ShieldAlert, Volume2 } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { api, fmtSize, Options, Settings as S, useFetch } from "../api";
 import { RecPill, useApp } from "../components/Layout";
+import { FolderPicker } from "../components/FolderPicker";
 import { Range, Seg, Toggle, useToast } from "../components/ui";
 
 type Patch = { [K in keyof S]?: Partial<S[K]> } | Partial<S>;
@@ -67,6 +68,20 @@ export function Settings() {
   const [level, setLevel] = useState(-90);
   const saveTimer = useRef<number>();
   const pending = useRef<Patch>({});
+  const [picking, setPicking] = useState(false);
+  const local = ["localhost", "127.0.0.1"].includes(location.hostname);
+
+  const pickFolder = async (path: string, move: boolean) => {
+    setPicking(false);
+    toast({ title: move ? "Moving clips…" : "Saving clips to the new folder", body: path, icon: <Folder /> });
+    try {
+      const r = await api<{ moved: number }>("/api/clips-dir", { method: "POST", json: { path, move } });
+      setData(await api<S>("/api/settings"));
+      toast({ title: "Clips folder changed", body: move ? `Moved ${r.moved} clips.` : path, icon: <Folder /> });
+    } catch (e) {
+      toast({ title: "Couldn't change folder", body: String((e as Error).message), error: true });
+    }
+  };
 
   useEffect(() => {
     if (!s || !loc.hash) return;
@@ -279,8 +294,9 @@ export function Settings() {
 
           <Group id="storage" title="Storage" lead={status ? `${status.stats.clips} clips using ${fmtSize(status.stats.size)}${status.disk ? `, ${fmtSize(status.disk.free)} free on the drive` : ""}.` : undefined}>
             <div className="rows">
-              <Row title="Clips folder" desc="Clips are sorted into a folder per game." wide>
-                <TextSetting value={s.clips_dir} onSave={(v) => set({ clips_dir: v })} />
+              <Row title="Clips folder" desc={<span title={s.clips_dir}>{s.clips_dir}</span>} wide>
+                {local && <button className="btn sm ghost" onClick={() => api("/api/reveal", { method: "POST", json: {} })}><FolderOpen />Open</button>}
+                <button className="btn sm" onClick={() => setPicking(true)}><Folder />Change…</button>
               </Row>
               <Row title="Limit library size" desc="0 means no limit." wide>
                 <Range label="Library size limit" value={s.storage.max_gb} min={0} max={500} step={5} onChange={(v) => set({ storage: { max_gb: v } })} />
@@ -327,6 +343,7 @@ export function Settings() {
             </div>
           </Group>
 
+          {picking && <FolderPicker start={s.clips_dir} title="Where should clips be saved?" moveOption onPick={pickFolder} onClose={() => setPicking(false)} />}
           <Group id="sharing" title="Sharing" lead="Share links work on your Wi-Fi only. To send a clip to friends anywhere, use Discord or your phone's share button.">
             <div className="rows">
               <Row title="Discord webhook" desc="Channel settings → Integrations → Webhooks → New Webhook → Copy URL." wide>
