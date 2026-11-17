@@ -152,7 +152,7 @@ function TopBar({ status, scrolled }: { status: Status | null; scrolled: boolean
 
   const clipNow = async () => {
     try {
-      const r = await api<{ ok: boolean; reason?: string }>("/api/clip", { method: "POST", json: { source: "phone" } });
+      const r = await api<{ ok: boolean; reason?: string }>("/api/clip", { method: "POST", json: { source: "web" } });
       if (!r.ok) toast({ title: "Couldn't clip", body: r.reason, error: true });
     } catch (e) {
       toast({ title: "Couldn't clip", body: String((e as Error).message), error: true });
