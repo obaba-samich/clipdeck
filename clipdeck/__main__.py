@@ -67,7 +67,8 @@ def main() -> int:
         logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
         cfg = Config()
         host = "0.0.0.0" if cfg["server"]["lan"] else "127.0.0.1"
-        uvicorn.run(create_app(), host=host, port=int(cfg["server"]["port"]), log_level="warning")
+        uvicorn.run(create_app(), host=host, port=int(cfg["server"]["port"]), log_level="warning",
+                    timeout_graceful_shutdown=2)  # live-update connections never close on their own
         return 0
 
     try:

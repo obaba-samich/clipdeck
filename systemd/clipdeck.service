@@ -9,6 +9,7 @@ WorkingDirectory=%h/projects/clipdeck
 ExecStart=%h/projects/clipdeck/.venv/bin/python -m clipdeck serve
 Restart=on-failure
 RestartSec=5
+TimeoutStopSec=10
 # The recorder itself runs at its own priority (Settings → Recording).
 Nice=2
 
