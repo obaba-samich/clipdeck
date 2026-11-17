@@ -448,7 +448,9 @@ h2.section a:hover { color: var(--text); }
   .search kbd { display: none; }
   .topbar { gap: 10px; }
   .topbar .rec { padding: 0 10px; gap: 6px; }
-  .topbar .rec .lbl { display: none; }
+  .topbar .rec .lbl, .topbar .rec .sub { display: none; }
+  .topbar .search { min-width: 0; }
+  .topbar .spacer { display: none; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px 12px; }
   .meta .gicon, .meta .gph { display: none; }
   .meta { padding-top: 8px; }
