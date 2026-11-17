@@ -171,6 +171,10 @@ def create_app(core: Core | None = None) -> FastAPI:
             source, seconds = "hotkey", 10**9
         return core.clip(source=source, seconds=float(seconds) if seconds else None)
 
+    @app.post("/api/record")
+    def record(body: dict = Body(default={})):
+        return core.toggle_recording(source=str(body.get("source", "web")))
+
     @app.post("/api/recorder/{action}")
     def recorder(action: str):
         if action == "start":

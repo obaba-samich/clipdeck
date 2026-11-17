@@ -51,6 +51,7 @@ def main() -> int:
     c = sub.add_parser("clip", help="save a clip from the replay buffer")
     c.add_argument("--long", action="store_true", help="save the whole buffer")
     c.add_argument("--seconds", type=float, help="save the last N seconds")
+    sub.add_parser("record", help="start or stop a full recording")
     sub.add_parser("status", help="show recorder and mic status")
     sub.add_parser("passcode", help="show the phone login passcode and address")
     sub.add_parser("open", help="start Clipdeck if needed and open the library window")
@@ -78,6 +79,10 @@ def main() -> int:
                 body["seconds"] = args.seconds
             r = _call("POST", "/api/clip", body)
             print("Saving clip" if r.get("ok") else f"Not saved: {r.get('reason')}")
+            return 0 if r.get("ok") else 1
+        if args.cmd == "record":
+            r = _call("POST", "/api/record", {"source": "hotkey"})
+            print(("Recording" if r.get("recording") else "Stopped recording") if r.get("ok") else f"Can't record: {r.get('reason')}")
             return 0 if r.get("ok") else 1
         if args.cmd == "status":
             s = _call("GET", "/api/status")
