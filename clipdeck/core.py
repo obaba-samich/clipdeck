@@ -1,0 +1,131 @@
+"""The running app: wires the recorder, mic listener and library together."""
+
+from __future__ import annotations
+
+import logging
+import threading
+import time
+from pathlib import Path
+
+from .config import Config
+from .db import DB
+from .feedback import Feedback
+from .games import GameDetector
+from .library import Events, Library
+from .listener import Listener
+from .recorder import Recorder, SaveRequest
+
+log = logging.getLogger("clipdeck")
+
+RECORDER_KEYS = {"monitor", "fps", "quality", "resolution", "record_game_audio", "record_mic",
+                 "game_audio_device", "mic_device", "replay_storage", "replay_seconds", "show_cursor", "nice"}
+
+
+class Core:
+    def __init__(self, config: Config | None = None):
+        self.config = config or Config()
+        self.db = DB()
+        self.events = Events()
+        self.library = Library(self.config, self.db, self.events)
+        self.feedback = Feedback(self.config)
+        self.games = GameDetector()
+        self.recorder = Recorder(self.config, self._saved)
+        self.listener = Listener(self.config, self._voice, self._hype)
+        self.config.on_change(self._config_changed)
+        self._last_save = 0.0
+
+    def start(self) -> None:
+        threading.Thread(target=self.library.scan, daemon=True).start()
+        if self.config["recorder"]["enabled"] and not self.config["recorder"]["only_while_gaming"]:
+            self.recorder.start()
+        self.listener.start()
+        threading.Thread(target=self._gaming_loop, daemon=True).start()
+
+    def stop(self) -> None:
+        self.listener.stop()
+        self.recorder.stop()
+
+    # clipping ----------------------------------------------------------------
+
+    def clip(self, source: str = "hotkey", seconds: float | None = None) -> dict:
+        now = time.monotonic()
+        if now - self._last_save < 1.0:
+            return {"ok": False, "reason": "Already saving a clip"}
+        game, appid = self.games.current()
+        if seconds is None:
+            seconds = self.config["recorder"]["default_clip_seconds"]
+        if seconds and seconds >= self.config["recorder"]["replay_seconds"]:
+            seconds = None  # whole buffer
+        req = SaveRequest(source=source, seconds=seconds, game=game, steam_appid=appid)
+        if not self.recorder.save(req):
+            why = "Replay isn't running" if self.recorder.state != "error" else self.recorder.error
+            self.feedback.failed(why)
+            return {"ok": False, "reason": why}
+        self._last_save = now
+        self.events.emit("saving", source=source, game=game)
+        return {"ok": True, "game": game}
+
+    def _saved(self, path: Path, req: SaveRequest) -> None:
+        clip = self.library.ingest(path, game=req.game, steam_appid=req.steam_appid,
+                                   source=req.source, seconds=req.seconds, created=req.at)
+        # Thumbnail is made in the background; give it a moment for the notification.
+        thumb = self.library.thumb(clip["id"])
+        for _ in range(30):
+            if thumb.exists():
+                break
+            time.sleep(0.1)
+        self.feedback.saved(clip, thumb)
+
+    def _voice(self, phrase: str) -> None:
+        log.info("heard %r", phrase)
+        self.events.emit("heard", phrase=phrase)
+        self.clip(source="voice")
+
+    def _hype(self) -> None:
+        # Wait a few seconds so the reaction itself ends up in the clip.
+        log.info("loud moment")
+        threading.Timer(4.0, lambda: self.clip(source="hype")).start()
+
+    # background ------------------------------------------------------------
+
+    def _gaming_loop(self) -> None:
+        was = None
+        while True:
+            r = self.config["recorder"]
+            gaming = self.games.gaming()
+            if r["enabled"] and r["only_while_gaming"]:
+                if gaming and self.recorder.state in ("stopped", "error") and was is not True:
+                    self.recorder.start()
+                elif not gaming and self.recorder.state != "stopped" and was is not False:
+                    self.recorder.stop()
+                was = gaming
+            else:
+                was = None
+            self.events.emit("game", game=self.games.current()[0])
+            time.sleep(5)
+
+    def _config_changed(self, old: dict, new: dict) -> None:
+        o, n = old["recorder"], new["recorder"]
+        if (o["enabled"], o["only_while_gaming"]) != (n["enabled"], n["only_while_gaming"]):
+            if not n["enabled"]:
+                self.recorder.stop()
+            elif not n["only_while_gaming"]:
+                self.recorder.start()
+        elif any(o[k] != n[k] for k in RECORDER_KEYS) and self.recorder.state != "stopped":
+            threading.Thread(target=self.recorder.restart, daemon=True).start()
+        if old["voice"] != new["voice"] or old["hype"]["enabled"] != new["hype"]["enabled"] \
+                or o["mic_device"] != n["mic_device"]:
+            threading.Thread(target=self.listener.start, daemon=True).start()
+        if old["clips_dir"] != new["clips_dir"]:
+            threading.Thread(target=self.library.scan, daemon=True).start()
+        self.events.emit("settings")
+
+    def status(self) -> dict:
+        game, appid = self.games.current()
+        return {
+            "recorder": self.recorder.status(),
+            "listener": self.listener.status(),
+            "game": game,
+            "steam_appid": appid,
+            "stats": self.db.stats(),
+        }
