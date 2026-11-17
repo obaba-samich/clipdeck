@@ -13,6 +13,7 @@ import logging
 import os
 import subprocess
 import threading
+import time
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +26,11 @@ from .launch import open_window
 
 log = logging.getLogger("clipdeck.tray")
 ASSETS = Path(__file__).parent / "assets"
+
+
+def _mmss(sec: float) -> str:
+    sec = int(sec)
+    return f"{sec // 3600}:{sec // 60 % 60:02d}:{sec % 60:02d}" if sec >= 3600 else f"{sec // 60}:{sec % 60:02d}"
 
 
 def _pixmaps(name: str) -> list:
@@ -166,6 +172,8 @@ class Menu(ServiceInterface):
             (3, sep),
             (4, item(f"Save clip (last {clip_s}s)", enabled=recording)),
             (5, item(f"Save whole buffer ({buf}s)", enabled=recording)),
+            (17, item(f"Stop recording ({_mmss(time.time() - c.recorder.session_started)})" if c.recorder.session
+                      else "Start full recording", enabled=recording)),
             (6, sep),
             (7, check("Replay buffer", cfg["recorder"]["enabled"])),
             (8, check("Voice clipping", cfg["voice"]["enabled"])),
@@ -313,7 +321,9 @@ class Tray:
         """Refresh icon, tooltip and menu when the state changes."""
         while True:
             c = self.core
-            st = (c.recorder.state, c.config["recorder"]["enabled"], c.config["voice"]["enabled"],
+            st = (c.recorder.state, bool(c.recorder.session),
+                  int(time.time() - c.recorder.session_started) // 5 if c.recorder.session else 0,
+                  c.config["recorder"]["enabled"], c.config["voice"]["enabled"],
                   c.config["hype"]["enabled"], c.config["recorder"]["only_while_gaming"],
                   c.config["recorder"]["replay_seconds"], c.config["recorder"]["default_clip_seconds"],
                   c.games.current()[0])
@@ -345,6 +355,8 @@ class Tray:
     def tooltip(self) -> str:
         c = self.core
         r = c.recorder.state
+        if c.recorder.session:
+            return f"● Recording {_mmss(time.time() - c.recorder.session_started)}"
         bits = [{"recording": f"Replay on ({c.config['recorder']['replay_seconds']}s)",
                  "error": "Replay stopped: " + c.recorder.error[:80]}.get(r, "Replay off")]
         if c.listener.state == "listening" and c.config["voice"]["enabled"]:
@@ -379,6 +391,7 @@ class Tray:
                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL),
             14: lambda: self.open("/settings"),
             16: lambda: c.recorder.restart() if c.recorder.state != "stopped" else c.recorder.start(),
+            17: lambda: c.toggle_recording(source="tray"),
         }
         fn = actions.get(i)
         if fn:
