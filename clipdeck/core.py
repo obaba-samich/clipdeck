@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -15,6 +16,7 @@ from .games import GameDetector
 from .library import Events, Library
 from .listener import Listener
 from .recorder import Recorder, SaveRequest
+from .tray import Tray
 
 log = logging.getLogger("clipdeck")
 
@@ -33,6 +35,8 @@ class Core:
         self.recorder = Recorder(self.config, self._saved)
         self.listener = Listener(self.config, self._voice, self._hype)
         self.renderer = Renderer(self.db, self.library, self.events, self.db.get_clip)
+        self.tray = Tray(self)
+        self.feedback.tray = self.tray
         self.config.on_change(self._config_changed)
         self._last_save = 0.0
 
@@ -41,7 +45,10 @@ class Core:
         if self.config["recorder"]["enabled"] and not self.config["recorder"]["only_while_gaming"]:
             self.recorder.start()
         self.listener.start()
+        self.tray.start()
         threading.Thread(target=self._gaming_loop, daemon=True).start()
+        threading.Thread(target=self._alerts_loop, daemon=True).start()
+        threading.Thread(target=self._export_alerts, daemon=True).start()
 
     def stop(self) -> None:
         self.listener.stop()
@@ -105,6 +112,32 @@ class Core:
                 was = None
             self.events.emit("game", game=self.games.current()[0])
             time.sleep(5)
+
+    def _alerts_loop(self) -> None:
+        """Desktop alerts for things that need attention."""
+        last_state = None
+        last_disk = 0.0
+        while True:
+            st = self.recorder.state
+            if st == "error" and last_state != "error":
+                self.feedback.alert("Replay stopped", self.recorder.error[:200] or "The recorder keeps crashing.")
+            last_state = st
+            try:
+                free = shutil.disk_usage(self.config.clips_dir).free
+                if free < 5 * 1024**3 and time.time() - last_disk > 6 * 3600:
+                    last_disk = time.time()
+                    self.feedback.alert("Clips drive almost full", f"{free / 1024**3:.1f} GB left. Old clips may fail to save.",
+                                        action="settings", label="Storage")
+            except OSError:
+                pass
+            time.sleep(10)
+
+    def _export_alerts(self) -> None:
+        q = self.events.subscribe()
+        while True:
+            ev = q.get()
+            if ev.get("type") == "render" and ev["job"]["state"] in ("done", "error"):
+                self.feedback.exported(ev["job"])
 
     def _config_changed(self, old: dict, new: dict) -> None:
         o, n = old["recorder"], new["recorder"]
