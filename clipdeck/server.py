@@ -9,10 +9,12 @@ import html
 import json
 import logging
 import mimetypes
+import os
 import queue
 import secrets
 import shutil
 import socket
+import subprocess
 import time
 import urllib.request
 import uuid
@@ -202,6 +204,87 @@ def create_app(core: Core | None = None) -> FastAPI:
             return {"ok": True, "set": hotkeys.apply(cfg["hotkeys"])}
         except OSError as e:
             raise HTTPException(500, f"Couldn't write COSMIC shortcuts: {e}")
+
+    # folders -----------------------------------------------------------------
+
+    @app.get("/api/fs")
+    def browse(path: str = ""):
+        p = Path(path).expanduser() if path else cfg.clips_dir
+        while not p.is_dir() and p != p.parent:
+            p = p.parent
+        try:
+            dirs = sorted((d for d in p.iterdir() if d.is_dir() and not d.name.startswith(".")), key=lambda d: d.name.lower())
+        except PermissionError:
+            dirs = []
+        home = Path.home()
+        places = [{"name": "Home", "path": str(home)}]
+        for name in ("Videos", "Desktop", "Documents", "Downloads"):
+            if (home / name).is_dir():
+                places.append({"name": name, "path": str(home / name)})
+        for mount in ("/media", "/mnt", f"/media/{home.name}", f"/run/media/{home.name}"):
+            mp = Path(mount)
+            if mp.is_dir():
+                for d in mp.iterdir():
+                    if d.is_dir() and os.path.ismount(d):
+                        places.append({"name": d.name, "path": str(d)})
+        free = shutil.disk_usage(p).free if p.exists() else 0
+        return {
+            "path": str(p),
+            "parent": str(p.parent) if p != p.parent else None,
+            "dirs": [{"name": d.name, "path": str(d)} for d in dirs[:500]],
+            "writable": os.access(p, os.W_OK),
+            "free": free,
+            "places": places,
+        }
+
+    @app.post("/api/fs/mkdir")
+    def mkdir(body: dict = Body(...)):
+        parent = Path(str(body.get("path", ""))).expanduser()
+        name = str(body.get("name", "")).strip().replace("/", "")
+        if not name or not parent.is_dir():
+            raise HTTPException(400, "Pick a folder and a name")
+        d = parent / name
+        d.mkdir(exist_ok=True)
+        return {"path": str(d)}
+
+    @app.post("/api/clips-dir")
+    async def set_clips_dir(body: dict = Body(...)):
+        new = Path(str(body.get("path", ""))).expanduser()
+        if not new.is_absolute():
+            raise HTTPException(400, "Pick a folder")
+        new.mkdir(parents=True, exist_ok=True)
+        if not os.access(new, os.W_OK):
+            raise HTTPException(400, "Clipdeck can't write to that folder")
+        old = cfg.clips_dir
+        if new.resolve() == old.resolve():
+            return {"ok": True, "moved": 0}
+        moved = 0
+        if body.get("move"):
+            moved = await asyncio.to_thread(lib.move_root, old, new)
+        cfg.update({"clips_dir": str(new)})
+        return {"ok": True, "moved": moved}
+
+    def _reveal(path: Path) -> None:
+        # Opens the file manager with the file selected; falls back to opening the folder.
+        uri = path.as_uri()
+        r = subprocess.run(["gdbus", "call", "--session", "--dest", "org.freedesktop.FileManager1",
+                            "--object-path", "/org/freedesktop/FileManager1",
+                            "--method", "org.freedesktop.FileManager1.ShowItems", f"['{uri}']", ""],
+                           capture_output=True, timeout=5)
+        if r.returncode != 0:
+            subprocess.Popen(["xdg-open", str(path.parent if path.is_file() else path)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    @app.post("/api/reveal")
+    def reveal(req: Request, body: dict = Body(default={})):
+        if not (req.client and req.client.host in LOCAL):
+            raise HTTPException(400, "Only works on the PC itself")
+        if body.get("clip"):
+            p = Path(get(body["clip"])["path"])
+        else:
+            p = cfg.clips_dir
+        _reveal(p)
+        return {"ok": True}
 
     @app.get("/api/options")
     def options(refresh: bool = False):
