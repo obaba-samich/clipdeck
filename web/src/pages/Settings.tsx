@@ -75,9 +75,9 @@ export function Settings() {
     setPicking(false);
     toast({ title: move ? "Moving clips…" : "Saving clips to the new folder", body: path, icon: <Folder /> });
     try {
-      const r = await api<{ moved: number }>("/api/clips-dir", { method: "POST", json: { path, move } });
+      const r = await api<{ moved: number; path: string }>("/api/clips-dir", { method: "POST", json: { path, move } });
       setData(await api<S>("/api/settings"));
-      toast({ title: "Clips folder changed", body: move ? `Moved ${r.moved} clips.` : path, icon: <Folder /> });
+      toast({ title: "Clips folder changed", body: `${move ? `Moved ${r.moved} clips to ` : ""}${r.path}`, icon: <Folder /> });
     } catch (e) {
       toast({ title: "Couldn't change folder", body: String((e as Error).message), error: true });
     }

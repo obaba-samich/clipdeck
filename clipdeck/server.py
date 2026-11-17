@@ -290,13 +290,19 @@ def create_app(core: Core | None = None) -> FastAPI:
         if not os.access(new, os.W_OK):
             raise HTTPException(400, "Clipdeck can't write to that folder")
         old = cfg.clips_dir
+        # Picking a busy folder (Home, Videos, a drive) puts clips in a "Clipdeck" folder inside it,
+        # so Clipdeck never mixes with or imports your other files.
+        if new.resolve() != old.resolve() and new.name.lower() != "clipdeck" \
+                and any(not c.name.startswith(".") for c in new.iterdir()):
+            new = new / "Clipdeck"
+            new.mkdir(exist_ok=True)
         if new.resolve() == old.resolve():
-            return {"ok": True, "moved": 0}
+            return {"ok": True, "moved": 0, "path": str(new)}
         moved = 0
         if body.get("move"):
             moved = await asyncio.to_thread(lib.move_root, old, new)
         cfg.update({"clips_dir": str(new)})
-        return {"ok": True, "moved": moved}
+        return {"ok": True, "moved": moved, "path": str(new)}
 
     def _reveal(path: Path) -> None:
         # Opens the file manager with the file selected; falls back to opening the folder.

@@ -61,7 +61,7 @@ export function FolderPicker({ start, title = "Choose a folder", onPick, onClose
           </button>
         ))}
       </div>
-      {ls && <div className="fp-free">{fmtSize(ls.free)} free here{!ls.writable && " · can't save here"}</div>}
+      {ls && <div className="fp-free">{fmtSize(ls.free)} free here{!ls.writable && " · can't save here"}{moveOption && ls.dirs.length > 0 && !/clipdeck$/i.test(ls.path) && " · clips will go in a new “Clipdeck” folder inside"}</div>}
       {moveOption && (
         <label className="fp-move">
           <input type="checkbox" checked={move} onChange={(e) => setMove(e.target.checked)} />
