@@ -287,6 +287,9 @@ export function ClipGrid({ clips, trash, albumId, freshId, art = {}, onChanged, 
 
       <div className={`selbar${selecting ? " show" : ""}`}>
         <span className="n">{sel.length ? `${sel.length} selected` : "Tap clips to select"}</span>
+        <button className="btn sm" onClick={() => setSel(sel.length === clips.length ? [] : clips.map((c) => c.id))} title="Ctrl+A">
+          <CheckSquare /><span className="hide-sm">{sel.length === clips.length ? "Select none" : "Select all"}</span><span className="mobile-only">{sel.length === clips.length ? "None" : "All"}</span>
+        </button>
         {trash ? (
           <>
             <button className="btn sm" onClick={() => bulk("restore", sel)}><RotateCcw />Restore</button>
