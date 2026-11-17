@@ -498,3 +498,12 @@ h2.section a:hover { color: var(--text); }
 .fp-free { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
 .fp-move { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13.5px; color: var(--text-2); }
 .fp-move input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+/* import */
+.dropzone { position: fixed; inset: 0; z-index: 90; background: rgba(5, 6, 8, 0.75); backdrop-filter: blur(4px); display: grid; place-items: center; padding: 24px; animation: fade 0.12s; pointer-events: none; }
+.dropzone > div { width: min(520px, 100%); padding: 48px 24px; border-radius: 22px; border: 2px dashed var(--accent-line); background: var(--panel); display: grid; justify-items: center; gap: 8px; text-align: center; }
+.dropzone svg { width: 34px; height: 34px; color: var(--accent); margin-bottom: 6px; }
+.dropzone b { font-size: 18px; }
+.dropzone span { color: var(--muted); }
+.upload-pill { position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 85; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line-2); box-shadow: var(--shadow); font-size: 13px; font-weight: 600; }
+.upload-pill .bar { width: 120px; margin: 0; }
