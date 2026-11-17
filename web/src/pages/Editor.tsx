@@ -79,20 +79,21 @@ export function Editor() {
 
   /* ---------- load ---------- */
 
-  const loadClips = useCallback(async (ids: string[]) => {
-    const missing = ids.filter((c) => !clips[c]);
-    if (!missing.length) return;
-    const got = await Promise.all(missing.map((c) => api<Clip>(`/api/clips/${c}`).catch(() => null)));
-    setClips((m) => ({ ...m, ...Object.fromEntries(got.filter(Boolean).map((c) => [c!.id, c!])) }));
-  }, [clips]);
 
   useEffect(() => {
     (async () => {
       if (pid) {
         const r = await api<{ data: Project }>(`/api/projects/${pid}`).catch(() => null);
         if (!r) return nav("/edits", { replace: true });
-        await loadClips(r.data.segments.map((s) => s.clip));
-        setP({ ...blankProject(r.data.name), ...r.data });
+        const ids = Array.from(new Set(r.data.segments.map((x) => x.clip)));
+        const got = await Promise.all(ids.map((c) => api<Clip>(`/api/clips/${c}`).catch(() => null)));
+        const found = Object.fromEntries(got.filter(Boolean).map((c) => [c!.id, c!]));
+        setClips(found);
+        const kept = r.data.segments.filter((x) => found[x.clip]);
+        if (kept.length < r.data.segments.length) {
+          toast({ title: "Some clips are gone", body: `${r.data.segments.length - kept.length} part(s) of this edit used clips that were deleted, so they were removed.`, error: true });
+        }
+        setP({ ...blankProject(r.data.name), ...r.data, segments: kept });
         return;
       }
       const ids = (params.get("clips") || "").split(",").filter(Boolean);
@@ -991,6 +992,9 @@ function ExportModal({ p, total, onChange, onClose, onExport }: {
         </div>
       </div>
       <p className="ed-hint" style={{ marginTop: 14 }}>About {est < 1 ? "<1" : Math.round(est)} MB.</p>
+      {o.format === "gif" && total > 15 && (
+        <p className="ed-hint" style={{ color: "var(--warn)", marginTop: 6 }}>GIFs over 15 seconds get very big and choppy. Trim it down or export as video.</p>
+      )}
       <div className="acts">
         <button className="btn ghost" onClick={onClose}>Cancel</button>
         <button className="btn primary" onClick={onExport}><Upload />Export</button>
