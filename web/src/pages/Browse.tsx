@@ -41,7 +41,7 @@ export function Home() {
           {today.length > 0 && (
             <>
               <h2 className="section" style={{ marginTop: 6 }}>Today <Link to="/clips">See all</Link></h2>
-              <ClipGrid clips={today} freshId={fresh} art={art} onChanged={reload} />
+              <ClipGrid clips={today} freshId={fresh} art={art} onChanged={reload} toolbar={false} />
             </>
           )}
           {games.length > 1 && (
@@ -53,13 +53,13 @@ export function Home() {
           {favs.clips && favs.clips.length > 0 && (
             <>
               <h2 className="section">Favorites <Link to="/favorites">See all</Link></h2>
-              <ClipGrid clips={favs.clips} art={favs.art} onChanged={favs.reload} />
+              <ClipGrid clips={favs.clips} art={favs.art} onChanged={favs.reload} toolbar={false} />
             </>
           )}
           {earlier.length > 0 && (
             <>
               <h2 className="section">{today.length ? "Earlier" : "Recent clips"} <Link to="/clips">See all</Link></h2>
-              <ClipGrid clips={earlier} freshId={fresh} art={art} onChanged={reload} />
+              <ClipGrid clips={earlier} freshId={fresh} art={art} onChanged={reload} toolbar={false} />
             </>
           )}
         </>

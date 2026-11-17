@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Download, FolderPlus, Link2, Mic, Pencil, RotateCcw, Smartphone, Sparkles, Star, Trash2, X } from "lucide-react";
+import { Check, CheckSquare, Clapperboard, Download, FolderPlus, Gamepad2, Link2, Mic, Pencil, RotateCcw, Scissors, Smartphone, Sparkles, Star, Trash2, X } from "lucide-react";
 import { Album, api, Clip, clipLength, fmtAgo, fmtDuration, initials, media } from "../api";
 import { Menu, MenuItem, Modal, useConfirm, usePrompt, useToast } from "./ui";
 
@@ -131,12 +131,14 @@ type GridProps = {
   freshId?: string | null;
   art?: Record<string, number>;
   onChanged: () => void;
+  toolbar?: boolean;
 };
 
-export function ClipGrid({ clips, trash, albumId, freshId, art = {}, onChanged }: GridProps) {
+export function ClipGrid({ clips, trash, albumId, freshId, art = {}, onChanged, toolbar = true }: GridProps) {
   const toast = useToast();
   const nav = useNavigate();
   const [sel, setSel] = useState<string[]>([]);
+  const [selectMode, setSelectMode] = useState(false);
   const [last, setLast] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ clip: Clip; x: number; y: number } | null>(null);
   const [albumPick, setAlbumPick] = useState<string[] | null>(null);
@@ -149,7 +151,10 @@ export function ClipGrid({ clips, trash, albumId, freshId, art = {}, onChanged }
 
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSel([]);
+      if (e.key === "Escape") {
+        setSel([]);
+        setSelectMode(false);
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === "a" && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) {
         e.preventDefault();
         setSel(clips.map((c) => c.id));
@@ -221,11 +226,13 @@ export function ClipGrid({ clips, trash, albumId, freshId, art = {}, onChanged }
     if (ids.length === 1) {
       items.push(
         { label: c.favorite ? "Remove from favorites" : "Add to favorites", icon: <Star />, onClick: () => bulk(c.favorite ? "unfavorite" : "favorite", ids) },
+        { label: "Edit", icon: <Scissors />, onClick: () => nav(`/edit?clips=${c.id}`) },
         { label: "Rename", icon: <Pencil />, onClick: () => rename(c) },
         { label: c.share_token ? "Copy share link" : "Get share link", icon: <Link2 />, onClick: () => share(c) },
         { label: "Download", icon: <Download />, onClick: () => (location.href = media.download(c.id)) },
       );
     } else {
+      items.push({ label: `Edit ${ids.length} clips together`, icon: <Clapperboard />, onClick: () => nav(`/edit?clips=${ids.join(",")}`) });
       items.push({ label: `Favorite ${ids.length} clips`, icon: <Star />, onClick: () => bulk("favorite", ids) });
     }
     items.push({ label: "Add to album…", icon: <FolderPlus />, onClick: () => setAlbumPick(ids) });
@@ -234,10 +241,35 @@ export function ClipGrid({ clips, trash, albumId, freshId, art = {}, onChanged }
     return items;
   };
 
-  const selecting = sel.length > 0;
+  const selecting = selectMode || sel.length > 0;
+  const exitSelect = () => {
+    setSel([]);
+    setSelectMode(false);
+  };
+  const changeGame = async (ids: string[]) => {
+    const g = await prompt(`Move ${ids.length > 1 ? `${ids.length} clips` : "clip"} to game`, "", "Move");
+    if (!g) return;
+    for (const i of ids) await api(`/api/clips/${i}`, { method: "PATCH", json: { game: g } });
+    exitSelect();
+    onChanged();
+  };
 
   return (
     <>
+      {toolbar && clips.length > 0 && (
+        <div className="gridbar">
+          {selecting ? (
+            <>
+              <button className="btn sm" onClick={() => setSel(sel.length === clips.length ? [] : clips.map((c) => c.id))}>
+                <CheckSquare />{sel.length === clips.length ? "Select none" : "Select all"}
+              </button>
+              <button className="btn sm ghost" onClick={exitSelect}>Done</button>
+            </>
+          ) : (
+            <button className="btn sm" onClick={() => setSelectMode(true)}><CheckSquare />Select</button>
+          )}
+        </div>
+      )}
       <div className={`grid${selecting ? " selecting" : ""}`}>
         {clips.map((c) => (
           <ClipCard
@@ -254,7 +286,7 @@ export function ClipGrid({ clips, trash, albumId, freshId, art = {}, onChanged }
       </div>
 
       <div className={`selbar${selecting ? " show" : ""}`}>
-        <span className="n">{sel.length} selected</span>
+        <span className="n">{sel.length ? `${sel.length} selected` : "Tap clips to select"}</span>
         {trash ? (
           <>
             <button className="btn sm" onClick={() => bulk("restore", sel)}><RotateCcw />Restore</button>
@@ -262,13 +294,15 @@ export function ClipGrid({ clips, trash, albumId, freshId, art = {}, onChanged }
           </>
         ) : (
           <>
-            <button className="btn sm" onClick={() => bulk("favorite", sel)}><Star />Favorite</button>
-            <button className="btn sm" onClick={() => setAlbumPick(sel)}><FolderPlus />Album</button>
-            {albumId && <button className="btn sm" onClick={() => bulk("unalbum", sel, { album: albumId })}><X />Remove</button>}
-            <button className="btn sm danger" onClick={() => trashIt(sel)}><Trash2 />Trash</button>
+            <button className="btn sm" disabled={!sel.length} onClick={() => nav(`/edit?clips=${sel.join(",")}`)} title="Open the selected clips together in the editor"><Clapperboard /><span className="hide-sm">Edit together</span></button>
+            <button className="btn sm" disabled={!sel.length} onClick={() => bulk("favorite", sel)}><Star /><span className="hide-sm">Favorite</span></button>
+            <button className="btn sm" disabled={!sel.length} onClick={() => setAlbumPick(sel)}><FolderPlus /><span className="hide-sm">Album</span></button>
+            <button className="btn sm" disabled={!sel.length} onClick={() => changeGame(sel)} title="Move to another game"><Gamepad2 /><span className="hide-sm">Game</span></button>
+            {albumId && <button className="btn sm" disabled={!sel.length} onClick={() => bulk("unalbum", sel, { album: albumId })}><X /><span className="hide-sm">Remove</span></button>}
+            <button className="btn sm danger" disabled={!sel.length} onClick={() => trashIt(sel)}><Trash2 /><span className="hide-sm">Delete</span></button>
           </>
         )}
-        <button className="btn sm ghost icon" aria-label="Clear selection" onClick={() => setSel([])}><X /></button>
+        <button className="btn sm ghost icon" aria-label="Stop selecting" onClick={exitSelect}><X /></button>
       </div>
 
       {menu && <Menu x={menu.x} y={menu.y} items={menuItems(menu.clip)} onClose={() => setMenu(null)} />}
