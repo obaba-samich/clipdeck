@@ -114,7 +114,7 @@ class DB:
         return rows[0] if rows else None
 
     def list_clips(self, q: str = "", game: str = "", favorite: bool = False,
-                   album: str = "", trash: bool = False, sort: str = "newest",
+                   album: str = "", trash: bool = False, sort: str = "newest", source: str = "",
                    limit: int = 200, offset: int = 0) -> list[dict]:
         where = ["deleted_at IS NOT NULL" if trash else "deleted_at IS NULL"]
         args: list = []
@@ -126,6 +126,9 @@ class DB:
             args.append(game)
         if favorite:
             where.append("favorite = 1")
+        if source:
+            where.append("source = ?")
+            args.append(source)
         if album:
             where.append("id IN (SELECT clip_id FROM album_clips WHERE album_id = ?)")
             args.append(album)

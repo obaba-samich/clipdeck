@@ -356,10 +356,10 @@ def create_app(core: Core | None = None) -> FastAPI:
         return c
 
     @app.get("/api/clips")
-    def clips(q: str = "", game: str = "", favorite: bool = False, album: str = "",
+    def clips(q: str = "", game: str = "", favorite: bool = False, album: str = "", source: str = "",
               trash: bool = False, sort: str = "newest", limit: int = 120, offset: int = 0):
-        rows = db.list_clips(q=q, game=game, favorite=favorite, album=album, trash=trash,
-                             sort=sort, limit=min(limit, 500), offset=offset)
+        rows = db.list_clips(q=q, game=game, favorite=favorite, album=album, trash=trash, source=source,
+                             sort=sort, limit=min(limit, 5000), offset=offset)
         return [public_clip(c) for c in rows]
 
     @app.get("/api/clips/{clip_id}")
