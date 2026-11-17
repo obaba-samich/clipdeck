@@ -86,8 +86,13 @@ class Core:
         return {"ok": True, "recording": r}
 
     def _saved(self, path: Path, req: SaveRequest) -> None:
-        clip = self.library.ingest(path, game=req.game, steam_appid=req.steam_appid,
-                                   source=req.source, seconds=req.seconds, created=req.at)
+        try:
+            clip = self.library.ingest(path, game=req.game, steam_appid=req.steam_appid,
+                                       source=req.source, seconds=req.seconds, created=req.at)
+        except Exception as e:
+            log.exception("couldn't add %s", path)
+            self.feedback.failed(f"The recording couldn't be read ({str(e)[:120]}). The file is kept in {path.parent}.")
+            return
         # Thumbnail is made in the background; give it a moment for the notification.
         thumb = self.library.thumb(clip["id"])
         for _ in range(30):
