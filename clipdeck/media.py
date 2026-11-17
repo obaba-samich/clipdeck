@@ -60,7 +60,7 @@ def cut(src: Path, dst: Path, start: float, end: float, exact: bool = False) -> 
     """Copy [start, end) into a new file.
 
     Without `exact`, streams are copied (instant, starts on the nearest
-    keyframe, which is at most 1 s away). With `exact`, it re-encodes so the
+    keyframe, which is at most 2 s away). With `exact`, it re-encodes so the
     cut lands on the exact frame.
     """
     dst.parent.mkdir(parents=True, exist_ok=True)
