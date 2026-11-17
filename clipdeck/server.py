@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import hmac
 import html
+import ipaddress
 import json
 import logging
 import mimetypes
@@ -21,6 +22,7 @@ import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
@@ -50,6 +52,20 @@ def lan_ip() -> str:
         return "127.0.0.1"
 
 
+def allowed_host(host: str) -> bool:
+    """IP addresses, localhost, this PC's name, .local and Tailscale (.ts.net) names."""
+    name = urlsplit(f"//{host}").hostname or ""
+    if not name:
+        return False
+    try:
+        ipaddress.ip_address(name)
+        return True
+    except ValueError:
+        pass
+    me = socket.gethostname().lower()
+    return name in ("localhost", me, f"{me}.local") or name.endswith((".local", ".ts.net", ".localhost"))
+
+
 def create_app(core: Core | None = None) -> FastAPI:
     core = core or Core()
     cfg = core.config
@@ -69,16 +85,34 @@ def create_app(core: Core | None = None) -> FastAPI:
     # auth ------------------------------------------------------------------
 
     def token() -> str:
-        return hmac.new(cfg["server"]["secret"].encode(), b"session-v1", hashlib.sha256).hexdigest()
+        # Tied to the passcode, so "New passcode" really signs every phone out.
+        msg = f"session-v2:{cfg['server']['passcode']}".encode()
+        return hmac.new(cfg["server"]["secret"].encode(), msg, hashlib.sha256).hexdigest()
+
+    def is_local(req: Request) -> bool:
+        return bool(req.client and req.client.host in LOCAL)
 
     def authed(req: Request) -> bool:
-        if req.client and req.client.host in LOCAL:
+        if is_local(req):
             return True
         got = req.cookies.get(COOKIE, "")
         return bool(got) and hmac.compare_digest(got, token())
 
     @app.middleware("http")
     async def guard(req: Request, call_next):
+        # 1. Only answer to addresses Clipdeck is really reached by. A website can point its own
+        #    domain at 127.0.0.1 (DNS rebinding) to read a local app; its Host header gives it away.
+        if not allowed_host(req.headers.get("host", "")):
+            return JSONResponse({"error": "unknown host"}, status_code=421)
+        # 2. "Allow other devices" off: refuse everything not from this PC, right away.
+        if not cfg["server"]["lan"] and not is_local(req):
+            return JSONResponse({"error": "Clipdeck only accepts this PC right now"}, status_code=403)
+        # 3. Changes must come from Clipdeck's own pages, not from another website in your browser.
+        if req.method not in ("GET", "HEAD", "OPTIONS"):
+            origin = req.headers.get("origin")
+            site = req.headers.get("sec-fetch-site", "")
+            if (origin and urlsplit(origin).netloc != req.headers.get("host", "")) or site == "cross-site":
+                return JSONResponse({"error": "cross-site request blocked"}, status_code=403)
         p = req.url.path
         open_path = p in ("/", "/login", "/api/login", "/api/me") or p.startswith(PUBLIC_PREFIXES) \
             or not (p.startswith("/api/") or p.startswith("/media/"))
@@ -91,7 +125,7 @@ def create_app(core: Core | None = None) -> FastAPI:
 
     @app.get("/api/me")
     def me(req: Request):
-        return {"authed": authed(req), "local": bool(req.client and req.client.host in LOCAL)}
+        return {"authed": authed(req), "local": is_local(req)}
 
     @app.post("/api/login")
     def login(req: Request, body: dict = Body(...)):
