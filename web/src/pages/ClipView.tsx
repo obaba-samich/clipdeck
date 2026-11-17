@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft, Check, Copy, Download, ExternalLink, FolderPlus, Link2, Maximize, Pause, Play, Repeat,
+  ArrowLeft, Check, Copy, Download, ExternalLink, FolderOpen, FolderPlus, Link2, Maximize, Pause, Play, Repeat,
   RotateCcw, Scissors, Send, SkipBack, SkipForward, Star, Trash2, Volume2, VolumeX, X,
 } from "lucide-react";
 import { Album, api, Clip, fmtDate, fmtSize, fmtTime, media, SOURCE_LABEL, useLive } from "../api";
@@ -353,6 +353,9 @@ export function ClipView() {
             <button className="btn" onClick={() => setDiscordOpen(true)} disabled={!!clip.deleted_at}><Send />Send to Discord</button>
             <a className="btn" href={media.download(id, "share", vol.mic, vol.game)}><Download />Download for sharing</a>
             <a className="btn ghost" href={media.download(id)}><Download />Download original</a>
+            {["localhost", "127.0.0.1"].includes(location.hostname) && (
+              <button className="btn ghost" onClick={() => api("/api/reveal", { method: "POST", json: { clip: id } })}><FolderOpen />Show in folder</button>
+            )}
           </div>
         </div>
 
