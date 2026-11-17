@@ -131,7 +131,7 @@ export function Settings() {
           <h1>Settings</h1>
           <div className="sub">Changes save as you go.</div>
         </div>
-        <div className="actions"><RecPill status={status} /></div>
+        <div className="actions mobile-only"><RecPill status={status} /></div>
       </div>
       <div className="settings">
         <nav className="settings-nav">
