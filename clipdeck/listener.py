@@ -129,7 +129,7 @@ class Listener:
                 raise RuntimeError("mic stream ended")
             samples = np.frombuffer(data, dtype=np.int16).astype(np.float32) / 32768
             rms = float(np.sqrt(np.mean(samples * samples)) + 1e-9)
-            self.level_db = 20 * np.log10(rms)
+            self.level_db = float(20 * np.log10(rms))
             if self.on_level:
                 self.on_level(self.level_db)
 
