@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import secrets
 import sqlite3
 import threading
@@ -40,6 +41,14 @@ CREATE TABLE IF NOT EXISTS albums (
     name       TEXT NOT NULL,
     created_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS projects (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    data       TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS album_clips (
     album_id TEXT NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
     clip_id  TEXT NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
@@ -154,6 +163,34 @@ class DB:
         row["trash"] = self._q("SELECT COUNT(*) AS n FROM clips WHERE deleted_at IS NOT NULL")[0]["n"]
         row["trash_size"] = self._q("SELECT COALESCE(SUM(size),0) AS n FROM clips WHERE deleted_at IS NOT NULL")[0]["n"]
         return row
+
+    # edit projects -------------------------------------------------------------
+
+    def projects(self) -> list[dict]:
+        rows = self._q("SELECT * FROM projects ORDER BY updated_at DESC")
+        for r in rows:
+            r["data"] = json.loads(r["data"])
+        return rows
+
+    def get_project(self, pid: str) -> dict | None:
+        rows = self._q("SELECT * FROM projects WHERE id=?", (pid,))
+        if not rows:
+            return None
+        rows[0]["data"] = json.loads(rows[0]["data"])
+        return rows[0]
+
+    def save_project(self, pid: str | None, name: str, data: dict) -> dict:
+        now = time.time()
+        if pid and self.get_project(pid):
+            self._x("UPDATE projects SET name=?, data=?, updated_at=? WHERE id=?", (name, json.dumps(data), now, pid))
+        else:
+            pid = pid or new_id()
+            self._x("INSERT INTO projects (id, name, data, created_at, updated_at) VALUES (?,?,?,?,?)",
+                    (pid, name, json.dumps(data), now, now))
+        return self.get_project(pid)
+
+    def delete_project(self, pid: str) -> None:
+        self._x("DELETE FROM projects WHERE id=?", (pid,))
 
     # albums ----------------------------------------------------------------
 
