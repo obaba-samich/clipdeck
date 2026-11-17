@@ -21,6 +21,36 @@ def _call(method: str, path: str, body: dict | None = None) -> dict:
         return json.loads(r.read())
 
 
+def _open() -> int:
+    """Start the service if it's not running, then open the library in its own app window."""
+    import shutil
+    import subprocess
+    import time
+
+    port = Config()["server"]["port"]
+    url = f"http://localhost:{port}"
+    try:
+        _call("GET", "/api/me")
+    except (urllib.error.URLError, OSError):
+        subprocess.run(["systemctl", "--user", "start", "clipdeck"], check=False)
+        for _ in range(40):
+            try:
+                _call("GET", "/api/me")
+                break
+            except (urllib.error.URLError, OSError):
+                time.sleep(0.25)
+    # Chrome's --app mode gives a window with no tabs or address bar, like a real app.
+    candidates = [
+        ["flatpak", "run", "com.google.Chrome", f"--app={url}"] if shutil.which("flatpak")
+        and subprocess.run(["flatpak", "info", "com.google.Chrome"], capture_output=True).returncode == 0 else None,
+        [shutil.which(b), f"--app={url}"] if (b := next((b for b in ("google-chrome", "chromium", "chromium-browser", "brave-browser") if shutil.which(b)), None)) else None,
+        ["xdg-open", url],
+    ]
+    cmd = next(c for c in candidates if c)
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="clipdeck")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -30,7 +60,11 @@ def main() -> int:
     c.add_argument("--seconds", type=float, help="save the last N seconds")
     sub.add_parser("status", help="show recorder and mic status")
     sub.add_parser("passcode", help="show the phone login passcode and address")
+    sub.add_parser("open", help="start Clipdeck if needed and open the library window")
     args = ap.parse_args()
+
+    if args.cmd == "open":
+        return _open()
 
     if args.cmd == "serve":
         import uvicorn
