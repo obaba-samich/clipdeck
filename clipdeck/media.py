@@ -79,6 +79,20 @@ def last_seconds(src: Path, dst: Path, seconds: float) -> None:
           "-avoid_negative_ts", "make_zero", "-movflags", "+faststart", str(dst)])
 
 
+def audio_track(src: Path, dst: Path, index: int) -> None:
+    """Pull one audio track out as .m4a (no re-encode), so the player can mix game and mic."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    _run(["-i", str(src), "-map", f"0:a:{index}", "-c", "copy", "-vn", "-movflags", "+faststart", str(dst)])
+
+
+def strip(src: Path, dst: Path, duration: float, frames: int = 10) -> None:
+    """One wide image of `frames` evenly spaced frames, for the trim timeline."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    step = max(duration / frames, 0.1)
+    _run(["-i", str(src), "-vf", f"fps=1/{step:.3f},scale=192:-2,tile={frames}x1", "-frames:v", "1",
+          "-q:v", "5", *THREADS, str(dst)])
+
+
 def faststart(src: Path, dst: Path) -> None:
     """Move the index to the front so phones can start playing before it fully loads."""
     _run(["-i", str(src), "-map", "0", "-c", "copy", "-movflags", "+faststart", str(dst)])

@@ -393,6 +393,28 @@ def create_app(core: Core | None = None) -> FastAPI:
             raise HTTPException(404)
         return FileResponse(p, media_type="video/mp4", headers={"Cache-Control": "private, max-age=60"})
 
+    @app.get("/media/audio/{clip_id}/{n}")
+    async def audio(clip_id: str, n: int):
+        c = get(clip_id)
+        if not 0 <= n < c["audio_tracks"]:
+            raise HTTPException(404)
+        out = CACHE_DIR / "audio" / f"{clip_id}-{n}-{int(c['size'])}.m4a"
+        if not out.exists():
+            tmp = out.with_suffix(".part.m4a")
+            await asyncio.to_thread(media.audio_track, Path(c["path"]), tmp, n)
+            tmp.replace(out)
+        return FileResponse(out, media_type="audio/mp4", headers={"Cache-Control": "private, max-age=3600"})
+
+    @app.get("/media/strip/{clip_id}")
+    async def strip(clip_id: str):
+        c = get(clip_id)
+        out = CACHE_DIR / "strips" / f"{clip_id}-{int(c['size'])}.jpg"
+        if not out.exists():
+            tmp = out.with_suffix(".part.jpg")
+            await asyncio.to_thread(media.strip, Path(c["path"]), tmp, c["duration"])
+            tmp.replace(out)
+        return FileResponse(out, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
     @app.get("/media/cover/{appid}")
     def cover(appid: str):
         p = steam_cover(appid) if appid.isdigit() else None
