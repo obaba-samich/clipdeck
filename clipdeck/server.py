@@ -23,8 +23,9 @@ from pathlib import Path
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 
-from . import media
+from . import hotkeys, media
 from .config import CACHE_DIR
+from .feedback import saved_sound
 from .core import Core
 from .games import steam_cover, steam_hero
 from .recorder import list_options
@@ -185,6 +186,22 @@ def create_app(core: Core | None = None) -> FastAPI:
     @app.post("/api/settings/passcode")
     def new_passcode():
         return cfg.update({"server": {"passcode": f"{secrets.randbelow(10**6):06d}"}})
+
+    @app.get("/api/level")
+    def level():
+        return {"level_db": round(core.listener.level_db, 1), "state": core.listener.state}
+
+    @app.post("/api/test-sound")
+    def test_sound():
+        core.feedback._play(saved_sound())
+        return {"ok": True}
+
+    @app.post("/api/hotkeys/apply")
+    def hotkeys_apply():
+        try:
+            return {"ok": True, "set": hotkeys.apply(cfg["hotkeys"])}
+        except OSError as e:
+            raise HTTPException(500, f"Couldn't write COSMIC shortcuts: {e}")
 
     @app.get("/api/options")
     def options(refresh: bool = False):
