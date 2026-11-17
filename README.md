@@ -10,6 +10,7 @@ Game clipping for Linux, built for one PC (Pop!_OS, COSMIC, Wayland). Always-on 
 - **Voice clipping**: say "clip that" (or your own phrases). Offline speech recognition (Vosk), with adjustable strictness
 - **Auto clips** on loud moments (yelling, cheering), with a live mic meter to set the level
 - Clip from the web app or the phone ("Clip" button)
+- **Full recording**: Record button (PC, phone, tray or a hotkey) records everything until you stop it, alongside the replay buffer
 - Game audio and mic saved as **separate tracks**
 - Only-while-playing mode: the buffer runs only while a game is open
 - Sound + desktop notification (with thumbnail) when a clip saves
@@ -54,6 +55,12 @@ Game clipping for Linux, built for one PC (Pop!_OS, COSMIC, Wayland). Always-on 
 **Phone app**
 - Same library, made for phones, installable to the home screen (PWA)
 - Pair by scanning the QR code in Settings → Phone and entering the 6-digit passcode
+
+## Security
+
+- Other devices need the 6-digit passcode; "New passcode" signs every phone out.
+- Requests addressed to unknown host names are refused (blocks DNS-rebinding tricks), and changes coming from other websites in your browser are blocked.
+- "Allow other devices: off" takes effect immediately.
 
 ## Recording
 
