@@ -150,9 +150,44 @@ class Recorder:
             if self._want:
                 self._spawn()
 
+    def _reap_orphans(self) -> None:
+        """Stop recorders left behind by an earlier Clipdeck that was killed.
+
+        The flatpak runs the recorder in its own scope, so it survives the
+        service being killed. Two recorders double the CPU and RAM use.
+        """
+        mine = set(_children(self.proc.pid)) if self.proc and self.proc.poll() is None else set()
+        target = str(self.incoming)
+        found = []
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit() or int(pid) in mine or _comm(int(pid)) != GSR_COMM:
+                continue
+            try:
+                cmd = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode(errors="replace")
+            except OSError:
+                continue
+            if target in cmd:
+                found.append(int(pid))
+        for pid in found:
+            log.warning("stopping leftover recorder %s", pid)
+            try:
+                os.kill(pid, signal.SIGINT)
+            except ProcessLookupError:
+                pass
+        for _ in range(30):
+            if not any(Path(f"/proc/{p}").exists() for p in found):
+                return
+            time.sleep(0.1)
+        for pid in found:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
     def _spawn(self) -> None:
         if self.proc and self.proc.poll() is None:
             return
+        self._reap_orphans()
         cmd = self.command()
         log.info("starting: %s", " ".join(cmd))
         self.state = "starting"

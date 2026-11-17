@@ -10,6 +10,8 @@ ExecStart=%h/projects/clipdeck/.venv/bin/python -m clipdeck serve
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=10
+# The flatpak recorder lives outside this service's process group; stop it even if Clipdeck was killed.
+ExecStopPost=-/usr/bin/pkill -INT -f "gpu-screen-recorder .*/\.incoming"
 # The recorder itself runs at its own priority (Settings → Recording).
 Nice=2
 
