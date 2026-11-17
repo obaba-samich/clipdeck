@@ -231,6 +231,10 @@ def create_app(core: Core | None = None) -> FastAPI:
     def level():
         return {"level_db": round(core.listener.level_db, 1), "state": core.listener.state}
 
+    @app.get("/api/voice/check")
+    def voice_check(phrase: str):
+        return {"unknown": core.listener.unknown_words(phrase)}
+
     @app.post("/api/test-sound")
     def test_sound():
         core.feedback._play(saved_sound())

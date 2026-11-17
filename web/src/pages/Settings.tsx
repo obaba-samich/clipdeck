@@ -69,6 +69,11 @@ export function Settings() {
   const saveTimer = useRef<number>();
   const pending = useRef<Patch>({});
   const [picking, setPicking] = useState(false);
+  const [unknown, setUnknown] = useState<string[]>([]);
+  useEffect(() => {
+    if (!s?.voice.phrase) return;
+    api<{ unknown: string[] }>(`/api/voice/check?phrase=${encodeURIComponent(s.voice.phrase)}`).then((r) => setUnknown(r.unknown)).catch(() => {});
+  }, [s?.voice.phrase]);
   const local = ["localhost", "127.0.0.1"].includes(location.hostname);
 
   const pickFolder = async (path: string, move: boolean) => {
@@ -243,7 +248,9 @@ export function Settings() {
               <Row title="Voice clipping" desc={lis?.state === "listening" ? (lis.last_heard ? `Listening. Last heard “${lis.last_heard}”.` : "Listening.") : "Off."}>
                 <Toggle label="Voice clipping" checked={s.voice.enabled} onChange={(v) => set({ voice: { enabled: v } })} />
               </Row>
-              <Row title="Phrase" desc="Separate a few with commas, e.g. “clip that, clip it”. Common English words work best." wide>
+              <Row title="Phrase" desc={unknown.length
+                ? <span style={{ color: "var(--warn)" }}>Not in the speech model, so these can never be heard: {unknown.map((w) => `“${w}”`).join(", ")}. Pick other words.</span>
+                : "Separate a few with commas, e.g. “clip that, clip it”. Common English words work best."} wide>
                 <TextSetting value={s.voice.phrase} onSave={(v) => set({ voice: { phrase: v } })} placeholder="clip that" />
               </Row>
               <Row title="Strictness" desc="Raise it if it clips when you didn't say it. Lower it if it misses you." wide>

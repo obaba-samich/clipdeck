@@ -90,6 +90,24 @@ class Listener:
         rec.SetWords(True)
         return rec
 
+    def unknown_words(self, phrase_text: str) -> list[str]:
+        """Words in the phrases the speech model doesn't know (they could never be heard)."""
+        mp = model_path()
+        if not mp.exists():
+            return []
+        import vosk
+        from vosk import _c
+
+        vosk.SetLogLevel(-1)
+        if self._model is None:
+            self._model = vosk.Model(str(mp))
+        out = []
+        for p in phrases(phrase_text):
+            for w in p.split():
+                if w not in out and _c.vosk_model_find_word(self._model._handle, w.encode()) < 0:
+                    out.append(w)
+        return out
+
     def _mic_cmd(self) -> list[str]:
         cmd = ["pw-record", "--rate", str(RATE), "--channels", "1", "--format", "s16", "--latency", "100ms"]
         dev = self.config["voice"]["mic_device"] or self.config["recorder"]["mic_device"]
