@@ -24,6 +24,27 @@ Game clipping for Linux, built for one PC (Pop!_OS, COSMIC, Wayland). Always-on 
 - Rename, change game, favorite, albums
 - Trash with restore, auto-empty after N days, optional size limit that cleans up the oldest non-favorites
 
+**Editor** (on PC and phone)
+- Put any clips on one timeline (select clips → Edit together), reorder, trim each with handles, split at the playhead, duplicate
+- Speed per clip from 0.25× to 4× (slow-mo / fast-forward), mute per clip
+- Text: 5 fonts, colors, outline/box/shadow, pop-up or fade animation, drag to place, drag its bar to retime
+- Canvas: 16:9, 9:16 (TikTok/Shorts) with blurred background or crop, 1:1, 4:5; zoom and pan
+- Color looks (Vivid, Cinematic, Bright, B&W) and brightness/contrast/saturation, vignette, sharpen
+- Game/mic volume, audio fades, fade from/to black, fade between clips
+- Undo/redo, autosave, keyboard shortcuts (Space, S split, T text, arrows)
+- Export to MP4 (480p–1440p, 24/30/60 fps) as a new library clip, or GIF; runs at low priority with progress and cancel
+
+**Desktop**
+- App launcher entry with icon (right-click: Save clip now)
+- Tray icon in the panel: red dot while recording; menu to clip, toggle replay/voice/auto clips, open edits, folder, settings
+- Notifications with Open / Edit / Delete buttons; alerts when replay stops or the drive is nearly full
+
+**Library extras**
+- Select mode (works on phones), select all, bulk favorite / album / move game / delete, Edit together
+- Import videos (drag onto the window, or pick from the phone's camera roll)
+- Save any frame as a PNG; Show in folder
+- Choose the clips folder with a folder picker (other drives too), optionally moving existing clips
+
 **Sharing**
 - Share links (work on your Wi-Fi), with a share page
 - Send to Discord through a webhook (auto-fits under 10 MB)
@@ -57,6 +78,7 @@ journalctl --user -u clipdeck -f
 
 ## Layout
 
-- `clipdeck/`: Python service (FastAPI). `recorder.py` runs GPU Screen Recorder, `listener.py` handles voice and loud moments, `library.py` handles clips, `server.py` the API, `hotkeys.py` the COSMIC shortcuts.
+- `clipdeck/`: Python service (FastAPI). `recorder.py` runs GPU Screen Recorder, `listener.py` handles voice and loud moments, `library.py` handles clips, `editor.py` renders edits with ffmpeg, `tray.py` is the tray icon and notifications, `server.py` the API, `hotkeys.py` the COSMIC shortcuts.
+- `ios/`: iPhone app (SwiftUI shell around the library). Built by `.github/workflows/ios.yml` into release `ios-latest`.
 - `web/`: React app (Vite). `npm run build` outputs to `clipdeck/static/`.
 - Config `~/.config/clipdeck/config.json`, database `~/.local/share/clipdeck/`, thumbnails `~/.cache/clipdeck/`, clips `~/Videos/Clipdeck/`.
