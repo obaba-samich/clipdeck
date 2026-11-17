@@ -114,7 +114,7 @@ export function RecPill({ status }: { status: Status | null }) {
   return (
     <NavLink to="/settings#recording" className={`rec ${cls}`} title={r?.error || "Replay buffer"}>
       <span className="dot" />
-      {label}
+      <span className="lbl">{label}</span>
       {state === "recording" && <span className="sub">{r!.buffer_seconds}s</span>}
       {status?.listener.state === "listening" && <Mic size={14} style={{ color: "var(--muted)" }} aria-label="Listening for voice command" />}
     </NavLink>

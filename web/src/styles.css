@@ -446,6 +446,9 @@ h2.section a:hover { color: var(--text); }
   .topbar .brand-sm { display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; }
   .topbar .brand-sm img { width: 26px; height: 26px; border-radius: 7px; }
   .search kbd { display: none; }
+  .topbar { gap: 10px; }
+  .topbar .rec { padding: 0 10px; gap: 6px; }
+  .topbar .rec .lbl { display: none; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px 12px; }
   .meta .gicon, .meta .gph { display: none; }
   .meta { padding-top: 8px; }
