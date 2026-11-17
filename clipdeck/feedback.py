@@ -69,7 +69,8 @@ class Feedback:
     def saved(self, clip: dict, thumb: Path | None = None) -> None:
         self._play(saved_sound())
         secs = round(clip["duration"])
-        how = {"voice": "Voice clip saved", "hype": "Auto clip saved", "phone": "Clipped from phone"}.get(clip["source"], "Clip saved")
+        how = {"voice": "Voice clip saved", "hype": "Auto clip saved", "phone": "Clipped from phone",
+               "record": "Recording saved"}.get(clip["source"], "Clip saved")
         body = f"{clip['game']} · {secs}s"
         if not self.config["feedback"]["notification"]:
             return
@@ -95,6 +96,16 @@ class Feedback:
             self._notify("Export finished", job["name"])
         elif job["state"] == "error":
             self.alert("Export failed", job["name"], action="edits", label="Edits")
+
+    def recording(self, on: bool) -> None:
+        self._play(heard_sound() if on else saved_sound())
+        if not self.config["feedback"]["notification"]:
+            return
+        title, body = ("Recording started", "Stop it from the tray, the app or the record hotkey.") if on \
+            else ("Recording stopped", "Saving it to your library…")
+        if self.tray and self.tray.notify(title, body, actions=["default", "Open"]):
+            return
+        self._notify(title, body)
 
     def heard(self) -> None:
         self._play(heard_sound())

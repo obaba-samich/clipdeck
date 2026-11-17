@@ -74,6 +74,17 @@ class Core:
         self.events.emit("saving", source=source, game=game)
         return {"ok": True, "game": game}
 
+    def toggle_recording(self, source: str = "web") -> dict:
+        game, appid = self.games.current()
+        r = self.recorder.toggle_session(SaveRequest(source="record", game=game, steam_appid=appid))
+        if r is None:
+            why = "Replay isn't running"
+            self.feedback.failed(why)
+            return {"ok": False, "reason": why}
+        self.events.emit("recording", on=r)
+        self.feedback.recording(r)
+        return {"ok": True, "recording": r}
+
     def _saved(self, path: Path, req: SaveRequest) -> None:
         clip = self.library.ingest(path, game=req.game, steam_appid=req.steam_appid,
                                    source=req.source, seconds=req.seconds, created=req.at)
