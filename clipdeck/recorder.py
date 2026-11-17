@@ -94,6 +94,9 @@ class Recorder:
         self.started_at = 0.0
         self.log_tail: collections.deque[str] = collections.deque(maxlen=60)
         self._pending: collections.deque[SaveRequest] = collections.deque()
+        # Full-session recording (a normal video made alongside the replay buffer).
+        self.session: SaveRequest | None = None
+        self.session_started = 0.0
         self._lock = threading.RLock()
         self._want = False
         self._fails = 0
@@ -120,6 +123,7 @@ class Recorder:
             "-c", "mp4", "-ac", "aac",
             "-cursor", "yes" if r["show_cursor"] else "no",
             "-o", str(self.incoming),
+            "-ro", str(self.incoming / "sessions"),
         ]
         if r["resolution"] and r["resolution"] != "native":
             cmd += ["-s", r["resolution"]]
@@ -188,6 +192,7 @@ class Recorder:
         if self.proc and self.proc.poll() is None:
             return
         self._reap_orphans()
+        self.session = None  # a restart ends any full recording
         cmd = self.command()
         log.info("starting: %s", " ".join(cmd))
         self.state = "starting"
@@ -225,6 +230,19 @@ class Recorder:
                 pass
         self.proc = None
 
+    def toggle_session(self, req: SaveRequest) -> bool | None:
+        """Start or stop a full recording. Returns True if started, False if stopped, None if not possible."""
+        with self._lock:
+            pid = self._gsr_pid()
+            if self.state != "recording" or not pid:
+                return None
+            os.kill(pid, signal.SIGRTMIN)
+            if self.session is None:
+                self.session = req
+                self.session_started = time.time()
+                return True
+            return False
+
     def save(self, req: SaveRequest) -> bool:
         """Ask GPU Screen Recorder to write out the buffer. False if not recording."""
         with self._lock:
@@ -249,7 +267,14 @@ class Recorder:
                 self._fails = 0
             if line.endswith(".mp4") and line.startswith("/"):
                 path = Path(line)
-                req = self._pending.popleft() if self._pending else SaveRequest()
+                if path.name.startswith("Video_") or "/sessions/" in line:
+                    # A finished full recording, not a replay save.
+                    req = self.session or SaveRequest(source="record")
+                    req.source = "record"
+                    req.seconds = None
+                    self.session = None
+                else:
+                    req = self._pending.popleft() if self._pending else SaveRequest()
                 threading.Thread(target=self._deliver, args=(path, req), daemon=True).start()
 
     def _deliver(self, path: Path, req: SaveRequest) -> None:
@@ -290,6 +315,7 @@ class Recorder:
             "state": self.state,
             "error": self.error,
             "since": self.started_at if self.state == "recording" else None,
+            "session_since": self.session_started if self.session else None,
             "buffer_seconds": self.config["recorder"]["replay_seconds"],
             "log": list(self.log_tail)[-12:],
         }
