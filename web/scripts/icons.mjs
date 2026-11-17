@@ -27,5 +27,6 @@ for (const [name, svgText] of Object.entries(variants)) {
   for (const size of [22, 32, 64]) {
     const { data, info } = await sharp(Buffer.from(svgText), { density: 300 }).resize(size, size).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
     writeFileSync(`${trayDir}tray-${name}-${info.width}.rgba`, data);
+    await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toFile(`${trayDir}tray-${name}-${info.width}.png`);
   }
 }

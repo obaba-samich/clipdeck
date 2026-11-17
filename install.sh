@@ -62,6 +62,13 @@ for s in 64 128 256 512; do
   d="$HOME/.local/share/icons/hicolor/${s}x${s}/apps"; mkdir -p "$d"
   (cd web && node -e "require('sharp')('public/icons/icon.svg',{density:384}).resize($s,$s).png().toFile('$d/clipdeck.png')")
 done
+# Tray icons by name (normal, recording, off), so the panel can load them from the icon theme.
+for v in idle rec off; do
+  for s in 22 32 64; do
+    d="$HOME/.local/share/icons/hicolor/${s}x${s}/apps"; mkdir -p "$d"
+    cp "clipdeck/assets/tray-$v-$s.png" "$d/clipdeck-tray-$v.png"
+  done
+done
 mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps" "$HOME/.local/share/applications"
 cp web/public/icons/icon.svg "$HOME/.local/share/icons/hicolor/scalable/apps/clipdeck.svg"
 rm -f "$HOME/.local/share/applications/clipdeck.desktop"  # old name, from before the native window

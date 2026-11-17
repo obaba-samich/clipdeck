@@ -67,7 +67,7 @@ class Item(ServiceInterface):
 
     @dbus_property(access=PropertyAccess.READ)
     def IconName(self) -> "s":
-        return ""
+        return self.tray.icon_name()
 
     @dbus_property(access=PropertyAccess.READ)
     def IconPixmap(self) -> "a(iiay)":
@@ -75,7 +75,7 @@ class Item(ServiceInterface):
 
     @dbus_property(access=PropertyAccess.READ)
     def IconThemePath(self) -> "s":
-        return ""
+        return str(Path.home() / ".local/share/icons")
 
     @dbus_property(access=PropertyAccess.READ)
     def AttentionIconPixmap(self) -> "a(iiay)":
@@ -329,10 +329,18 @@ class Tray:
 
     # what the icon shows ---------------------------------------------------------
 
-    def icon_pixmaps(self) -> list:
+    def _variant(self) -> str:
         st = self.core.recorder.state
-        name = "rec" if st == "recording" else "off" if st in ("stopped", "error") else "idle"
-        return self._icons.get(name) or self._icons.get("idle") or []
+        return "rec" if st == "recording" else "off" if st in ("stopped", "error") else "idle"
+
+    def icon_name(self) -> str:
+        """Themed icon installed by install.sh; empty if missing so the pixmap is used."""
+        name = f"clipdeck-tray-{self._variant()}"
+        found = (Path.home() / ".local/share/icons/hicolor/32x32/apps" / f"{name}.png").exists()
+        return name if found else ""
+
+    def icon_pixmaps(self) -> list:
+        return self._icons.get(self._variant()) or self._icons.get("idle") or []
 
     def tooltip(self) -> str:
         c = self.core
