@@ -66,6 +66,7 @@ DEFAULTS: dict = {
     "hotkeys": {
         "clip": "F8",
         "clip_long": "",  # optional second key that saves the whole buffer
+        "record": "",  # start/stop a full recording
     },
     "server": {
         "port": 7878,
