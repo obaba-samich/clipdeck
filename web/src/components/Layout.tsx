@@ -3,10 +3,11 @@ import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router
 import { Clapperboard, Film, FolderOpen, Gamepad2, Home, Mic, Search, Settings, Star, Trash2, Scissors } from "lucide-react";
 import { api, fmtSize, Game, media, Status, useLive } from "../api";
 import { GameIcon } from "./ClipGrid";
+import { useImporter } from "./Importer";
 import { useToast } from "./ui";
 
-type AppState = { status: Status | null; games: Game[]; refresh: () => void };
-const AppCtx = createContext<AppState>({ status: null, games: [], refresh: () => {} });
+type AppState = { status: Status | null; games: Game[]; refresh: () => void; importFiles: () => void };
+const AppCtx = createContext<AppState>({ status: null, games: [], refresh: () => {}, importFiles: () => {} });
 export const useApp = () => useContext(AppCtx);
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -17,6 +18,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const nav = useNavigate();
   const loc = useLocation();
   const scroller = useRef<HTMLDivElement>(null);
+  const importer = useImporter();
 
   const refresh = () => {
     api<Status>("/api/status").then(setStatus).catch(() => {});
@@ -49,7 +51,7 @@ export function Layout({ children }: { children: ReactNode }) {
   });
 
   return (
-    <AppCtx.Provider value={{ status, games, refresh }}>
+    <AppCtx.Provider value={{ status, games, refresh, importFiles: importer.open }}>
       <div className="shell">
         <Sidebar status={status} games={games} />
         <div className="main">
@@ -59,6 +61,7 @@ export function Layout({ children }: { children: ReactNode }) {
           </div>
         </div>
         <TabBar />
+        {importer.node}
       </div>
     </AppCtx.Provider>
   );

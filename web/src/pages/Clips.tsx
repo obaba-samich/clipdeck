@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowDownUp, Film, Mic, Scissors, Search, Sparkles, Star, Trash2 } from "lucide-react";
+import { ArrowDownUp, Film, Mic, Scissors, Search, Sparkles, Star, Trash2, Upload } from "lucide-react";
 import { api, Clip, fmtSize, useLive } from "../api";
 import { ClipGrid, GameIcon, SkeletonGrid } from "../components/ClipGrid";
 import { useApp } from "../components/Layout";
@@ -127,10 +127,12 @@ export function ClipsView({ title, sub, query = {}, header, showGames, trash, al
 export function AllClips() {
   const [params] = useSearchParams();
   const q = params.get("q");
+  const { importFiles } = useApp();
   return (
     <ClipsView
       title={q ? `Results for “${q}”` : "All clips"}
       showGames={!q}
+      actions={<button className="btn" onClick={importFiles} title="Import videos (or drag them onto the window)"><Upload /><span className="hide-sm">Import</span></button>}
       empty={<NoClipsYet />}
     />
   );
