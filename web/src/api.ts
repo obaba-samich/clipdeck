@@ -114,7 +114,8 @@ export type LiveEvent =
   | { type: "heard"; phrase: string }
   | { type: "game"; game: string }
   | { type: "settings" }
-  | { type: "bulk" };
+  | { type: "bulk" }
+  | { type: "render"; job: RenderJob };
 
 type Handler = (e: LiveEvent) => void;
 const handlers = new Set<Handler>();
@@ -218,4 +219,55 @@ export const SOURCE_LABEL: Record<string, string> = {
   cli: "Command",
   import: "Imported",
   trim: "Trimmed",
+  edit: "Editor",
 };
+
+/* ---------- editor ---------- */
+
+export type Segment = { id: string; clip: string; start: number; end: number; speed: number; mute: boolean };
+export type TextItem = {
+  id: string; text: string; start: number; end: number; x: number; y: number; size: number;
+  color: string; style: "none" | "outline" | "box" | "shadow"; font: string; anim: "none" | "fade" | "pop";
+};
+export type Project = {
+  name: string;
+  segments: Segment[];
+  texts: TextItem[];
+  aspect: "16:9" | "9:16" | "1:1" | "4:5";
+  fit: "fill" | "blur" | "bars";
+  pan: number;
+  zoom: number;
+  transition: "cut" | "fade";
+  fade_in: number;
+  fade_out: number;
+  adjust: { brightness: number; contrast: number; saturation: number; vignette: boolean; sharpen: boolean };
+  audio: { game: number; mic: number; fade_in: number; fade_out: number };
+  output: { format: "mp4" | "gif"; height: number; fps: number; quality: "high" | "medium" | "small"; fast: boolean };
+};
+export type ProjectRow = { id: string; name: string; updated_at: number; clips: number; cover: string | null };
+export type RenderJob = {
+  id: string; project_id: string; name: string; total: number; state: "queued" | "running" | "done" | "error" | "canceled";
+  progress: number; error: string; clip_id: string | null; file: string | null; format: string; created: number;
+};
+
+export function newId() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+export function blankProject(name: string): Project {
+  return {
+    name,
+    segments: [],
+    texts: [],
+    aspect: "16:9",
+    fit: "fill",
+    pan: 0.5,
+    zoom: 1,
+    transition: "cut",
+    fade_in: 0,
+    fade_out: 0,
+    adjust: { brightness: 0, contrast: 1, saturation: 1, vignette: false, sharpen: false },
+    audio: { game: 1, mic: 1, fade_in: 0, fade_out: 0 },
+    output: { format: "mp4", height: 1080, fps: 60, quality: "high", fast: false },
+  };
+}
