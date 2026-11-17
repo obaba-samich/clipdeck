@@ -483,3 +483,18 @@ h2.section a:hover { color: var(--text); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* folder picker */
+.modal:has(.fp-list) { width: min(560px, 100%); }
+.fp-places { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0 12px; }
+.fp-path { display: flex; align-items: center; gap: 6px; padding: 4px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line-2); }
+.fp-path span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; font-size: 13px; color: var(--text-2); }
+.fp-list { margin-top: 8px; height: 280px; overflow-y: auto; border-radius: 10px; border: 1px solid var(--line); background: var(--bg-2); padding: 4px; }
+.fp-list button { display: flex; align-items: center; gap: 10px; width: 100%; height: 36px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); text-align: left; }
+.fp-list button:hover { background: var(--panel-2); color: var(--text); }
+.fp-list button svg { color: var(--accent); flex: none; }
+.fp-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp-empty { padding: 20px; text-align: center; color: var(--muted); font-size: 13px; }
+.fp-free { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.fp-move { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13.5px; color: var(--text-2); }
+.fp-move input { accent-color: var(--accent); width: 16px; height: 16px; }
