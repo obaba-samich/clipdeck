@@ -6,6 +6,8 @@ import WebKit
 /// pull to refresh, swipe back, and a link back to the server settings.
 struct LibraryView: UIViewRepresentable {
     let base: URL
+    /// Bumped by ServerStore on every successful connect; used to leave the offline page.
+    var connection: Int = 0
     var openSettings: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(openSettings: openSettings) }
@@ -40,9 +42,14 @@ struct LibraryView: UIViewRepresentable {
     }
 
     func updateUIView(_ web: WKWebView, context: Context) {
-        context.coordinator.openSettings = openSettings
-        if context.coordinator.base?.host != base.host || context.coordinator.base?.port != base.port {
-            context.coordinator.base = base
+        let c = context.coordinator
+        c.openSettings = openSettings
+        let moved = c.base?.host != base.host || c.base?.port != base.port
+        let reconnected = c.connection != connection
+        c.connection = connection
+        if moved || (reconnected && c.offline) {
+            c.base = base
+            c.offline = false
             web.load(URLRequest(url: base))
         }
     }
@@ -50,6 +57,8 @@ struct LibraryView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
         weak var web: WKWebView?
         var base: URL?
+        var connection = 0
+        var offline = false
         var openSettings: () -> Void
         private var files: [WKDownload: URL] = [:]
 
@@ -133,9 +142,20 @@ struct LibraryView: UIViewRepresentable {
             showOffline(error)
         }
 
+        // iOS kills the web content process when the app sits in the background; reload instead of a blank screen.
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            if let url = webView.url, isOurs(url) { webView.load(URLRequest(url: url)) }
+            else if let base { webView.load(URLRequest(url: base)) }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            if isOurs(webView.url) { offline = false }
+        }
+
         private func showOffline(_ error: Error) {
             let code = (error as NSError).code
             if code == NSURLErrorCancelled || code == 102 /* frame load interrupted (downloads) */ { return }
+            offline = true
             let html = """
             <html><head><meta name='viewport' content='width=device-width,initial-scale=1'>
             <style>body{background:#0b0c0f;color:#eef0f4;font:16px -apple-system;display:flex;height:100vh;margin:0;align-items:center;justify-content:center;text-align:center}

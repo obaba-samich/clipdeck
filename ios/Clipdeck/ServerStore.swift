@@ -8,6 +8,8 @@ final class ServerStore: ObservableObject {
     @Published var away: String { didSet { UserDefaults.standard.set(away, forKey: "away") } }
     @Published var active: URL?
     @Published var state: State = .idle
+    /// Goes up on every successful connect, so the library can leave its offline page.
+    @Published var connection = 0
 
     enum State: Equatable { case idle, connecting, connected, unreachable }
 
@@ -40,6 +42,7 @@ final class ServerStore: ObservableObject {
             if await Self.reachable(base) {
                 active = base
                 state = .connected
+                connection += 1
                 return
             }
         }
