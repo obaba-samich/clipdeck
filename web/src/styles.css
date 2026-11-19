@@ -683,3 +683,8 @@ h2.section a:hover { color: var(--text); }
 
 .load-more { display: grid; place-items: center; padding: 28px 0; }
 .load-more span { width: 140px; height: 8px; border-radius: 8px; }
+
+/* iPhone zooms the page into any text field under 16px; keep them at 16px on touch screens. */
+@media (pointer: coarse) {
+  input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: max(16px, 1em); }
+}
