@@ -102,7 +102,12 @@ struct SetupView: View {
         guard let url = URL(string: h) else { error = "That address doesn't look right."; return }
         checking = true
         error = nil
-        let ok = await ServerStore.reachable(url)
+        var ok = false
+        // The first try can fail while iOS asks "Allow local network?"; retry for a few seconds.
+        for attempt in 0..<5 where !ok {
+            if attempt > 0 { try? await Task.sleep(for: .seconds(2)) }
+            ok = await ServerStore.reachable(url)
+        }
         checking = false
         if !ok && a.isEmpty {
             error = "No answer from \(h). Is Clipdeck running, and is the phone on the same Wi-Fi? (Saved anyway.)"

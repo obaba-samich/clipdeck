@@ -40,21 +40,29 @@ final class ServerStore: ObservableObject {
     /// Picks the first address that answers /api/me.
     func connect() async {
         state = .connecting
-        for raw in [home, away] where !raw.isEmpty {
-            guard let base = URL(string: Self.normalize(raw)) else { continue }
-            if await Self.reachable(base) {
-                active = base
-                state = .connected
-                connection += 1
-                return
+        // Until the first success, iOS may be showing "Allow local network?" and failing
+        // requests meanwhile, so keep trying for a bit instead of reporting "can't reach".
+        let tries = UserDefaults.standard.bool(forKey: "everConnected") ? 1 : 6
+        for attempt in 0..<tries {
+            if attempt > 0 { try? await Task.sleep(for: .seconds(2)) }
+            for (i, raw) in [home, away].enumerated() where !raw.isEmpty {
+                guard let base = URL(string: Self.normalize(raw)) else { continue }
+                // Tailscale can take a moment to wake up; give the away address longer.
+                if await Self.reachable(base, timeout: i == 0 ? 2.5 : 6) {
+                    active = base
+                    state = .connected
+                    connection += 1
+                    UserDefaults.standard.set(true, forKey: "everConnected")
+                    return
+                }
             }
         }
         state = .unreachable
     }
 
-    static func reachable(_ base: URL) async -> Bool {
+    static func reachable(_ base: URL, timeout: TimeInterval = 2.5) async -> Bool {
         var req = URLRequest(url: base.appendingPathComponent("api/me"))
-        req.timeoutInterval = 2.5
+        req.timeoutInterval = timeout
         req.cachePolicy = .reloadIgnoringLocalCacheData
         do {
             let (_, res) = try await URLSession.shared.data(for: req)
