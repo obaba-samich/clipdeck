@@ -1,5 +1,8 @@
 # Clipdeck
 
+> [!WARNING]
+> **This is currently only for me.** Clipdeck is built for one specific PC (Pop!_OS, COSMIC, Wayland, an RX 570) and isn't meant for anyone else to install yet. It has hardcoded assumptions, no support, and may break on your setup. Feel free to look around, but don't expect it to work for you.
+
 Game clipping for Linux, built for one PC (Pop!_OS, COSMIC, Wayland). Always-on replay, clip with a hotkey or by saying "clip that", and a clip library you can open on your PC or phone.
 
 ## Features
