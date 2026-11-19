@@ -38,6 +38,7 @@ struct LibraryView: UIViewRepresentable {
         web.scrollView.refreshControl = refresh
 
         context.coordinator.web = web
+        config.websiteDataStore.httpCookieStore.add(context.coordinator)
         context.coordinator.base = base
         web.load(URLRequest(url: base))
         return web
@@ -57,7 +58,7 @@ struct LibraryView: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, WKHTTPCookieStoreObserver {
         weak var web: WKWebView?
         var base: URL?
         var connection = 0
@@ -158,24 +159,43 @@ struct LibraryView: UIViewRepresentable {
             shareLogin(webView)
         }
 
-        /// The login cookie is tied to one address. Copy it to the PC's other address
-        /// (home Wi-Fi <-> Tailscale) so leaving home doesn't ask for the passcode again.
+        /// The login cookie is tied to one address. Keep the PC's addresses (home Wi-Fi and
+        /// Tailscale) in step, so leaving home doesn't ask for the passcode again, and signing
+        /// out on one signs out on both.
+        private var knownLogin: [String: String] = [:]  // host -> login we last saw there
+
+        func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
+            if let web { shareLogin(web) }
+        }
+
         private func shareLogin(_ webView: WKWebView) {
             guard let host = base?.host else { return }
             let others = Set(addresses.compactMap(\.host)).subtracting([host])
-            guard !others.isEmpty else { return }
             let store = webView.configuration.websiteDataStore.httpCookieStore
             store.getAllCookies { cookies in
-                guard let mine = cookies.first(where: { $0.name == "clipdeck_session" && $0.domain == host }) else {
-                    // Signed out here: sign out on the other address too.
-                    cookies.filter { $0.name == "clipdeck_session" && others.contains($0.domain) }.forEach { store.delete($0) }
-                    return
-                }
-                for other in others {
-                    if cookies.contains(where: { $0.name == mine.name && $0.domain == other && $0.value == mine.value }) { continue }
-                    var props = mine.properties ?? [:]
-                    props[.domain] = other
-                    if let copy = HTTPCookie(properties: props) { store.setCookie(copy) }
+                DispatchQueue.main.async {
+                    let session = cookies.filter { $0.name == "clipdeck_session" }
+                    let mine = session.first { $0.domain == host }
+                    if let mine {
+                        self.knownLogin[host] = mine.value
+                        for other in others where !session.contains(where: { $0.domain == other && $0.value == mine.value }) {
+                            var props = mine.properties ?? [:]
+                            props[.domain] = other
+                            if let copy = HTTPCookie(properties: props) { store.setCookie(copy) }
+                        }
+                    } else if self.knownLogin[host] != nil {
+                        // Signed out here: sign out on the other address too.
+                        self.knownLogin = [:]
+                        session.filter { others.contains($0.domain) }.forEach { store.delete($0) }
+                    } else if let theirs = session.first(where: { others.contains($0.domain) }) {
+                        // Logged in on the other address before: use that login here.
+                        var props = theirs.properties ?? [:]
+                        props[.domain] = host
+                        if let copy = HTTPCookie(properties: props) {
+                            self.knownLogin[host] = copy.value
+                            store.setCookie(copy) { webView.reload() }
+                        }
+                    }
                 }
             }
         }
