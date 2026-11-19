@@ -166,7 +166,11 @@ struct LibraryView: UIViewRepresentable {
             guard !others.isEmpty else { return }
             let store = webView.configuration.websiteDataStore.httpCookieStore
             store.getAllCookies { cookies in
-                guard let mine = cookies.first(where: { $0.name == "clipdeck_session" && $0.domain == host }) else { return }
+                guard let mine = cookies.first(where: { $0.name == "clipdeck_session" && $0.domain == host }) else {
+                    // Signed out here: sign out on the other address too.
+                    cookies.filter { $0.name == "clipdeck_session" && others.contains($0.domain) }.forEach { store.delete($0) }
+                    return
+                }
                 for other in others {
                     if cookies.contains(where: { $0.name == mine.name && $0.domain == other && $0.value == mine.value }) { continue }
                     var props = mine.properties ?? [:]
