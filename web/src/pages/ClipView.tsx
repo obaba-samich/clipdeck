@@ -151,8 +151,12 @@ export function ClipView() {
     const el = video.current?.parentElement;
     if (!el) return;
     if (document.fullscreenElement) document.exitFullscreen();
-    else if (el.requestFullscreen) el.requestFullscreen();
-    else (video.current as HTMLVideoElement & { webkitEnterFullscreen?: () => void })?.webkitEnterFullscreen?.();
+    else {
+      // iPhone: element fullscreen may be missing or refused; fall back to the native video player.
+      const native = () => (video.current as HTMLVideoElement & { webkitEnterFullscreen?: () => void })?.webkitEnterFullscreen?.();
+      if (el.requestFullscreen) el.requestFullscreen().catch(native);
+      else native();
+    }
   };
 
   /* --- actions --- */
