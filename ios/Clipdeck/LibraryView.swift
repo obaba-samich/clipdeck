@@ -39,6 +39,12 @@ struct LibraryView: UIViewRepresentable {
 
         context.coordinator.web = web
         config.websiteDataStore.httpCookieStore.add(context.coordinator)
+        // Pull to refresh fights drags in the editor and the trim timeline, so it's off there.
+        context.coordinator.urlWatch = web.observe(\.url, options: [.new]) { web, _ in
+            let path = web.url?.path ?? ""
+            let dragHeavy = path == "/edit" || path.hasPrefix("/edit/") || path.hasPrefix("/clip/")
+            web.scrollView.refreshControl = dragHeavy ? nil : refresh
+        }
         context.coordinator.base = base
         web.load(URLRequest(url: base))
         return web
@@ -64,6 +70,7 @@ struct LibraryView: UIViewRepresentable {
         var connection = 0
         var offline = false
         var addresses: [URL] = []
+        var urlWatch: NSKeyValueObservation?
         var openSettings: () -> Void
         private var files: [WKDownload: URL] = [:]
 
