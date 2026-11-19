@@ -19,6 +19,8 @@ struct LibraryView: UIViewRepresentable {
         config.websiteDataStore = .default()  // keeps the login cookie
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
+        // Lets the player go fullscreen with its own controls (and the synced mic track).
+        config.preferences.isElementFullscreenEnabled = true
         config.applicationNameForUserAgent = "ClipdeckApp/1.0 Mobile/15E148 Safari/604.1"
 
         let web = WKWebView(frame: .zero, configuration: config)
