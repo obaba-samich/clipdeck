@@ -8,6 +8,8 @@ struct LibraryView: UIViewRepresentable {
     let base: URL
     /// Bumped by ServerStore on every successful connect; used to leave the offline page.
     var connection: Int = 0
+    /// Every address of this PC (home + away). The login is copied to all of them.
+    var addresses: [URL] = []
     var openSettings: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(openSettings: openSettings) }
@@ -44,6 +46,7 @@ struct LibraryView: UIViewRepresentable {
     func updateUIView(_ web: WKWebView, context: Context) {
         let c = context.coordinator
         c.openSettings = openSettings
+        c.addresses = addresses
         let moved = c.base?.host != base.host || c.base?.port != base.port
         let reconnected = c.connection != connection
         c.connection = connection
@@ -59,6 +62,7 @@ struct LibraryView: UIViewRepresentable {
         var base: URL?
         var connection = 0
         var offline = false
+        var addresses: [URL] = []
         var openSettings: () -> Void
         private var files: [WKDownload: URL] = [:]
 
@@ -149,7 +153,27 @@ struct LibraryView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            if isOurs(webView.url) { offline = false }
+            guard isOurs(webView.url) else { return }
+            offline = false
+            shareLogin(webView)
+        }
+
+        /// The login cookie is tied to one address. Copy it to the PC's other address
+        /// (home Wi-Fi <-> Tailscale) so leaving home doesn't ask for the passcode again.
+        private func shareLogin(_ webView: WKWebView) {
+            guard let host = base?.host else { return }
+            let others = Set(addresses.compactMap(\.host)).subtracting([host])
+            guard !others.isEmpty else { return }
+            let store = webView.configuration.websiteDataStore.httpCookieStore
+            store.getAllCookies { cookies in
+                guard let mine = cookies.first(where: { $0.name == "clipdeck_session" && $0.domain == host }) else { return }
+                for other in others {
+                    if cookies.contains(where: { $0.name == mine.name && $0.domain == other && $0.value == mine.value }) { continue }
+                    var props = mine.properties ?? [:]
+                    props[.domain] = other
+                    if let copy = HTTPCookie(properties: props) { store.setCookie(copy) }
+                }
+            }
         }
 
         private func showOffline(_ error: Error) {

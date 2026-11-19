@@ -33,7 +33,7 @@ struct RootView: View {
             if !store.configured {
                 SetupView(firstRun: true)
             } else if let url = store.active {
-                LibraryView(base: url, connection: store.connection, openSettings: { showSetup = true })
+                LibraryView(base: url, connection: store.connection, addresses: store.addresses, openSettings: { showSetup = true })
                     .ignoresSafeArea(edges: .bottom)
             } else if store.state == .unreachable {
                 OfflineView(openSettings: { showSetup = true })

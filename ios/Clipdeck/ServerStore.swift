@@ -20,6 +20,9 @@ final class ServerStore: ObservableObject {
 
     var configured: Bool { !home.isEmpty }
 
+    /// Home and away addresses as URLs.
+    var addresses: [URL] { [home, away].filter { !$0.isEmpty }.compactMap { URL(string: Self.normalize($0)) } }
+
     static func normalize(_ raw: String) -> String {
         var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if s.isEmpty { return "" }
