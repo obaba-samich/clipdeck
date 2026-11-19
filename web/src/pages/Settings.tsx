@@ -324,7 +324,7 @@ export function Settings() {
 
           <Group id="phone" title="Phone" lead="Open your library on your phone while it's on the same Wi-Fi. Add it to your home screen and it works like an app.">
             <div className="rows">
-              <Row title="Allow other devices" desc="Off = only this PC can open the library. Takes effect after a restart of Clipdeck.">
+              <Row title="Allow other devices" desc="Off = only this PC can open the library. Takes effect right away.">
                 <Toggle label="Allow other devices" checked={s.server.lan} onChange={(v) => set({ server: { lan: v } })} />
               </Row>
               {s.server.lan && status && (
