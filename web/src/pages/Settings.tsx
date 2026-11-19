@@ -335,7 +335,9 @@ export function Settings() {
                     <span style={{ marginTop: 6 }}>or open <b style={{ display: "inline", userSelect: "all" }}>{status.lan_url}</b></span>
                     <span style={{ marginTop: 14 }}>Passcode</span>
                     <div className="code" style={{ marginTop: 2 }}>{s.server.passcode}</div>
-                    <span style={{ marginTop: 12 }}>iPhone: tap Share, then “Add to Home Screen”. Android: menu, then “Install app”.</span>
+                    {!navigator.userAgent.includes("ClipdeckApp") && (
+                      <span style={{ marginTop: 12 }}>Clipdeck iPhone app: tap “Scan QR code”. Or in Safari: Share, then “Add to Home Screen”. Android: menu, then “Install app”.</span>
+                    )}
                   </div>
                 </div>
               )}
