@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import signal as _signal
 import subprocess
 import threading
 import time
@@ -185,6 +186,8 @@ class Menu(ServiceInterface):
             (14, item("Settings")),
             (15, sep),
             (16, item("Restart recorder")),
+            (18, sep),
+            (19, item("Quit Clipdeck")),
         ]
 
     def _layout(self):
@@ -392,10 +395,20 @@ class Tray:
             14: lambda: self.open("/settings"),
             16: lambda: c.recorder.restart() if c.recorder.state != "stopped" else c.recorder.start(),
             17: lambda: c.toggle_recording(source="tray"),
+            19: self.quit,
         }
         fn = actions.get(i)
         if fn:
             threading.Thread(target=fn, daemon=True).start()
+
+    def quit(self) -> None:
+        """Close the window and stop the service. The app launcher icon starts it again."""
+        subprocess.run(["pkill", "-f", "clipdeck/window.py"], check=False)
+        if os.environ.get("INVOCATION_ID"):  # running as the systemd service
+            # --no-block: systemd stops us; waiting here would wait on our own exit.
+            subprocess.run(["systemctl", "--user", "--no-block", "stop", "clipdeck"], check=False)
+        else:
+            os.kill(os.getpid(), _signal.SIGTERM)
 
     # notifications ---------------------------------------------------------------
 

@@ -40,7 +40,7 @@ Game clipping for Linux, built for one PC (Pop!_OS, COSMIC, Wayland). Always-on 
 
 **Desktop**
 - App launcher entry with icon (right-click: Save clip now)
-- Tray icon in the panel: red dot while recording; menu to clip, toggle replay/voice/auto clips, open edits, folder, settings
+- Tray icon in the panel: red dot while recording; menu to clip, toggle replay/voice/auto clips, open edits, folder, settings, and Quit (the launcher icon starts it again)
 - Notifications with Open / Edit / Delete buttons; alerts when replay stops or the drive is nearly full
 
 **Library extras**
