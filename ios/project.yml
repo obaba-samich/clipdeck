@@ -25,7 +25,9 @@ targets:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: Clipdeck connects to your PC on your Wi-Fi to show your clips.
-        NSCameraUsageDescription: Scan the QR code on your PC to connect.
+        NSCameraUsageDescription: Scan the QR code on your PC to connect, or film a video to import.
+        # Picking "Take Video" when importing records sound; without this iOS kills the app.
+        NSMicrophoneUsageDescription: Record sound when you film a video to import.
         NSPhotoLibraryAddUsageDescription: Save clips to your Photos.
     settings:
       base:
