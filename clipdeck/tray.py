@@ -271,6 +271,7 @@ class Tray:
         self._state = None
         self._icons = {n: _pixmaps(n) for n in ("idle", "rec", "off")}
         self.ready = False
+        self._notify_tried = time.time()
 
     # lifecycle -----------------------------------------------------------------
 
@@ -340,6 +341,12 @@ class Tray:
                     self.menu.changed()
                 except Exception:
                     log.exception("tray update failed")
+            if not self.notify_iface and time.time() - self._notify_tried > 10:
+                # At login the notification service can start after Clipdeck; keep trying.
+                self._notify_tried = time.time()
+                await self._setup_notifications()
+                if self.notify_iface:
+                    log.info("notifications ready")
             await asyncio.sleep(1.5)
 
     # what the icon shows ---------------------------------------------------------
