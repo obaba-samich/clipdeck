@@ -265,7 +265,9 @@ class Tray:
         self.item: Item | None = None
         self.menu: Menu | None = None
         self.notify_iface = None
-        self.notes: dict[int, str] = {}  # notification id -> clip id
+        # Every notification Clipdeck showed: id -> clip id (or None). Clicks are broadcast
+        # to every app, so anything not in here belongs to someone else.
+        self.notes: dict[int, str | None] = {}
         self._state = None
         self._icons = {n: _pixmaps(n) for n in ("idle", "rec", "off")}
         self.ready = False
@@ -424,16 +426,17 @@ class Tray:
                 hints["image-path"] = Variant("s", icon)
             nid = await self.notify_iface.call_notify("Clipdeck", replace, "clipdeck", title, body,
                                                       actions or [], hints, 6000)
-            if clip_id:
-                self.notes[nid] = clip_id
-                if len(self.notes) > 50:
-                    self.notes.pop(next(iter(self.notes)))
+            self.notes[nid] = clip_id
+            if len(self.notes) > 100:
+                self.notes.pop(next(iter(self.notes)))
 
         asyncio.run_coroutine_threadsafe(go(), self.loop)
         return True
 
     def _on_action(self, nid: int, key: str) -> None:
-        clip = self.notes.get(nid)
+        if nid not in self.notes:
+            return  # another app's notification
+        clip = self.notes[nid]
         if key in ("default", "open"):
             self.open(f"/clip/{clip}" if clip else "/")
         elif key == "edit" and clip:
