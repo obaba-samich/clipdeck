@@ -241,12 +241,18 @@ def create_app(core: Core | None = None) -> FastAPI:
         core.feedback._play(saved_sound())
         return {"ok": True}
 
+    @app.get("/api/hotkeys")
+    def hotkeys_info():
+        return hotkeys.info()
+
     @app.post("/api/hotkeys/apply")
     def hotkeys_apply():
         try:
             return {"ok": True, "set": hotkeys.apply(cfg["hotkeys"])}
+        except hotkeys.Unsupported as e:
+            raise HTTPException(400, str(e))
         except OSError as e:
-            raise HTTPException(500, f"Couldn't write COSMIC shortcuts: {e}")
+            raise HTTPException(500, f"Couldn't set the shortcuts: {e}")
 
     # folders -----------------------------------------------------------------
 

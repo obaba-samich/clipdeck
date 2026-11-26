@@ -65,6 +65,7 @@ export function Settings() {
   const loc = useLocation();
   const { data: s, setData } = useFetch<S>("/api/settings");
   const { data: opts, reload: reloadOpts } = useFetch<Options>("/api/options");
+  const { data: keys } = useFetch<{ desktop: string | null; name: string; command: string; record_command: string }>("/api/hotkeys");
   const [level, setLevel] = useState(-90);
   const saveTimer = useRef<number>();
   const pending = useRef<Patch>({});
@@ -230,7 +231,10 @@ export function Settings() {
             </div>
           </Group>
 
-          <Group id="hotkeys" title="Hotkeys" lead="Work everywhere, even in fullscreen games. Set through COSMIC's keyboard shortcuts. Click one and press a key; Backspace clears it.">
+          <Group id="hotkeys" title="Hotkeys" lead={`Work everywhere, even in fullscreen games.${keys?.desktop ? ` Set through ${keys.desktop === "cosmic" ? "COSMIC" : "GNOME"}'s keyboard shortcuts.` : ""} Click one and press a key; Backspace clears it.`}>
+            {keys && !keys.desktop && (
+              <div className="note"><Keyboard /><div>Clipdeck can't add shortcuts on {keys.name} by itself. In your keyboard settings, add a custom shortcut that runs <code>{keys.command}</code> (and <code>{keys.record_command}</code> for recording).</div></div>
+            )}
             <div className="rows">
               <Row title="Save clip" desc={`Saves the last ${r.replay_seconds} seconds.`}>
                 <HotkeyInput value={s.hotkeys.clip} onChange={(v) => set({ hotkeys: { clip: v } })} />
