@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Clapperboard, Film, FolderOpen, Gamepad2, Home, Mic, Search, Settings, Star, Trash2, Scissors } from "lucide-react";
-import { api, fmtSize, Game, media, Status, useLive } from "../api";
+import { api, Game, media, Status, useLive } from "../api";
 import { GameIcon } from "./ClipGrid";
 import { useImporter } from "./Importer";
 import { useToast } from "./ui";
@@ -75,9 +75,6 @@ export function Layout({ children }: { children: ReactNode }) {
 
 function Sidebar({ status, games }: { status: Status | null; games: Game[] }) {
   const s = status?.stats;
-  const disk = status?.disk;
-  const used = s?.size ?? 0;
-  const pct = disk ? Math.min(100, (used / (used + disk.free)) * 100) : 0;
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -103,15 +100,6 @@ function Sidebar({ status, games }: { status: Status | null; games: Game[] }) {
       </div>
       <NavLink to="/trash" className="nav-item"><Trash2 /><span className="label">Trash</span><span className="count">{s?.trash || ""}</span></NavLink>
       <NavLink to="/settings" className="nav-item"><Settings /><span className="label">Settings</span></NavLink>
-      {s && (
-        <div className="storage">
-          <div className="row">
-            <span>Clips {fmtSize(used)}</span>
-            <span>{disk ? `${fmtSize(disk.free)} free` : ""}</span>
-          </div>
-          <div className="bar"><i style={{ width: `${Math.max(pct, 1.5)}%` }} /></div>
-        </div>
-      )}
     </aside>
   );
 }
