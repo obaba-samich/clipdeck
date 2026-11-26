@@ -23,7 +23,7 @@ gi.require_version("Adw", "1")
 gi.require_version("WebKit", "6.0")
 from gi.repository import Adw, Gdk, Gio, GLib, Gtk, WebKit  # noqa: E402
 
-APP_ID = "com.pizza.Clipdeck"
+APP_ID = "io.github.obaba_samich.Clipdeck"
 DEFAULT_URL = "http://localhost:7878/"
 STATE = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local/state")) / "clipdeck" / "window"
 DOWNLOADS = Path(GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOWNLOAD) or Path.home() / "Downloads")
