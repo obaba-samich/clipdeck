@@ -22,6 +22,9 @@ DEFAULTS: dict = {
         "enabled": True,
         # Seconds kept in the replay buffer. A clip saves the last N seconds.
         "replay_seconds": 30,  # also the clip length: every clip saves the whole buffer
+        # "gpu" (falls back to CPU if the card can't encode) or "cpu". Polaris cards
+        # (RX 570 etc.) are always CPU whatever this says; see recorder.encoder_for.
+        "encoder": "gpu",
         "monitor": "DP-1",
         "fps": 60,
         # very_high | high | medium | low  (x264 constant quality)

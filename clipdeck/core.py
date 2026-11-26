@@ -21,7 +21,7 @@ from .tray import Tray
 log = logging.getLogger("clipdeck")
 
 RECORDER_KEYS = {"monitor", "fps", "quality", "resolution", "record_game_audio", "record_mic",
-                 "game_audio_device", "mic_device", "replay_storage", "replay_seconds", "show_cursor", "nice"}
+                 "game_audio_device", "mic_device", "replay_storage", "replay_seconds", "show_cursor", "nice", "encoder"}
 
 
 class Core:

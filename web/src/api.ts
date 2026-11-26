@@ -28,7 +28,7 @@ export type Game = { game: string; steam_appid: string | null; count: number; si
 export type Album = { id: string; name: string; created_at: number; count: number; cover_id: string | null };
 
 export type Status = {
-  recorder: { state: "stopped" | "starting" | "recording" | "error"; error: string; since: number | null; session_since: number | null; buffer_seconds: number; log: string[] };
+  recorder: { state: "stopped" | "starting" | "recording" | "error"; error: string; since: number | null; session_since: number | null; buffer_seconds: number; encoder?: { used: "gpu" | "cpu"; why: string }; encoder_locked?: boolean; log: string[] };
   listener: { state: "off" | "listening" | "error"; error: string; level_db: number; last_heard: string; model: boolean };
   game: string;
   steam_appid: string | null;
@@ -41,7 +41,7 @@ export type Status = {
 export type Settings = {
   clips_dir: string;
   recorder: {
-    enabled: boolean; replay_seconds: number; monitor: string; fps: number;
+    enabled: boolean; replay_seconds: number; encoder: "gpu" | "cpu"; monitor: string; fps: number;
     quality: string; resolution: string; record_game_audio: boolean; record_mic: boolean;
     game_audio_device: string; mic_device: string; replay_storage: string; only_while_gaming: boolean;
     show_cursor: boolean; nice: number;

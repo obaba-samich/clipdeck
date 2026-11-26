@@ -1,8 +1,9 @@
 """Runs GPU Screen Recorder in replay mode and saves clips from its buffer.
 
-Always CPU encoding (x264). The RX 570's hardware encoder (VCE) hung and reset
-the GPU on 2026-11-16, which took the whole desktop down, so GPU encoding is
-not an option here, not even as a setting.
+Encoding: GPU by default (falls back to CPU x264 if the card can't encode), or CPU when
+the "encoder" setting says so. Polaris cards (RX 470/480/570/580/590) are always CPU:
+the RX 570's encoder (VCE) hung and reset the GPU on 2026-11-16 and took the whole
+desktop down, so on a PC with one of those no setting can turn GPU encoding on.
 """
 
 from __future__ import annotations
@@ -22,6 +23,33 @@ log = logging.getLogger("clipdeck.recorder")
 FLATPAK_ID = "com.dec05eba.gpu_screen_recorder"
 GSR = ["flatpak", "run", f"--command=gpu-screen-recorder", FLATPAK_ID]
 GSR_COMM = "gpu-screen-reco"  # /proc comm is cut to 15 characters
+# AMD Polaris (RX 470/480/570/580/590 and their Pro versions), by PCI device id.
+BLOCKED_GPUS = {("0x1002", d) for d in ("0x67df", "0x67ef", "0x67ff", "0x6fdf", "0x67c0", "0x67c4",
+                                        "0x67c7", "0x67e0", "0x67e3", "0x67e8", "0x67eb", "0x699f")}
+
+
+def blocked_gpu() -> str | None:
+    """The PCI id of a GPU whose encoder must never be used, if this PC has one."""
+    for dev in Path("/sys/class/drm").glob("card[0-9]*/device"):
+        try:
+            ids = ((dev / "vendor").read_text().strip(), (dev / "device").read_text().strip())
+        except OSError:
+            continue
+        if ids in BLOCKED_GPUS:
+            return ":".join(i[2:] for i in ids)
+    return None
+
+
+def encoder_for(setting: str) -> tuple[str, str]:
+    """(encoder, why) for the recorder: "gpu" or "cpu"."""
+    bad = blocked_gpu()
+    if bad:
+        return "cpu", f"This graphics card ({bad}, AMD Polaris) froze a PC while encoding, so Clipdeck always uses the CPU on it."
+    if setting == "cpu":
+        return "cpu", "Set to CPU in Settings."
+    return "gpu", "Graphics card, with CPU as a fallback if the card can't encode."
+
+
 QUALITIES = {"low": "medium", "medium": "high", "high": "very_high", "very_high": "ultra"}
 
 
@@ -113,9 +141,10 @@ class Recorder:
 
     def command(self) -> list[str]:
         r = self.config["recorder"]
+        enc, _ = encoder_for(r.get("encoder", "gpu"))
         cmd = GSR + [
             "-w", r["monitor"],
-            "-encoder", "cpu", "-k", "h264",
+            "-encoder", enc, "-k", "h264",
             "-f", str(int(r["fps"])), "-fm", "cfr",
             "-q", QUALITIES.get(r["quality"], "very_high"),
             "-r", str(int(r["replay_seconds"])),
@@ -125,6 +154,8 @@ class Recorder:
             "-o", str(self.incoming),
             "-ro", str(self.incoming / "sessions"),
         ]
+        if enc == "gpu":
+            cmd += ["-fallback-cpu-encoding", "yes"]
         if r["resolution"] and r["resolution"] != "native":
             cmd += ["-s", r["resolution"]]
         # Separate tracks so the mic can be muted or turned down later.
@@ -321,5 +352,7 @@ class Recorder:
             "since": self.started_at if self.state == "recording" else None,
             "session_since": self.session_started if self.session else None,
             "buffer_seconds": self.config["recorder"]["replay_seconds"],
+            "encoder": dict(zip(("used", "why"), encoder_for(self.config["recorder"].get("encoder", "gpu")))),
+            "encoder_locked": blocked_gpu() is not None,
             "log": list(self.log_tail)[-12:],
         }

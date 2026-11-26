@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Folder, FolderOpen, Info, Keyboard, LogOut, RefreshCw, ShieldAlert, Volume2 } from "lucide-react";
+import { Folder, FolderOpen, Keyboard, LogOut, RefreshCw, ShieldAlert, Volume2 } from "lucide-react";
 import qrcode from "qrcode-generator";
 import { api, fmtSize, Options, Settings as S, useFetch } from "../api";
 import { RecPill, useApp } from "../components/Layout";
@@ -162,7 +162,6 @@ export function Settings() {
             {rec?.state === "error" && (
               <div className="note"><ShieldAlert /><div><b>Replay stopped.</b> {rec.error}</div></div>
             )}
-            <div className="note info"><Info /><div>Video is encoded on the CPU (x264). The graphics card's own encoder froze this PC, so it's never used.</div></div>
             <div className="rows">
               <Row title="Replay buffer" desc={rec?.state === "recording" ? "Recording into memory now." : rec?.state === "starting" ? "Starting…" : "Off. Nothing is being recorded."}>
                 <button className="btn sm ghost" onClick={() => api("/api/recorder/restart", { method: "POST" })} title="Restart recorder"><RefreshCw /></button>
@@ -174,6 +173,12 @@ export function Settings() {
               <Row title="Clip length" desc={`How far back a clip goes. Uses about ${bufMb >= 1000 ? (bufMb / 1000).toFixed(1) + " GB" : bufMb + " MB"} of RAM.`} wide>
                 <Range label="Clip length" value={r.replay_seconds} min={15} max={300} step={15} onChange={(v) => set({ recorder: { replay_seconds: v } })} />
                 <span className="val">{r.replay_seconds < 60 ? `${r.replay_seconds}s` : `${(r.replay_seconds / 60).toFixed(r.replay_seconds % 60 ? 1 : 0)} min`}</span>
+              </Row>
+              <Row title="Encoder" desc={rec?.encoder_locked ? rec.encoder?.why : r.encoder === "cpu" ? "CPU (x264). Works on any PC but uses more CPU while you play." : "Graphics card. Barely affects games. Falls back to the CPU if the card can't encode."}>
+                <select className="select" value={rec?.encoder_locked ? "cpu" : r.encoder} disabled={rec?.encoder_locked} onChange={(e) => set({ recorder: { encoder: e.target.value as "gpu" | "cpu" } })}>
+                  <option value="gpu">Graphics card</option>
+                  <option value="cpu">CPU</option>
+                </select>
               </Row>
               <Row title="Screen">
                 <select className="select" value={r.monitor} onChange={(e) => set({ recorder: { monitor: e.target.value } })}>

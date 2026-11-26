@@ -215,8 +215,9 @@ def create_app(core: Core | None = None) -> FastAPI:
     @app.put("/api/settings")
     def put_settings(body: dict = Body(...)):
         r = body.get("recorder", {})
-        # Never let the UI switch to GPU encoding; it crashes this PC.
-        r.pop("encoder", None)
+        # Only these two. Polaris cards stay on CPU no matter what (recorder.encoder_for).
+        if "encoder" in r and r["encoder"] not in ("gpu", "cpu"):
+            r.pop("encoder")
         if "replay_seconds" in r:
             r["replay_seconds"] = int(min(max(int(r["replay_seconds"]), 10), 600))
         if "fps" in r:
