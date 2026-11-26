@@ -99,6 +99,24 @@ def strip(src: Path, dst: Path, duration: float, frames: int = 10) -> None:
           "-q:v", "5", *THREADS, str(dst)])
 
 
+def storyboard_grid(duration: float) -> tuple[float, int, int, int]:
+    """(fps, frames, cols, rows) of a clip's storyboard. web/src/components/frameHold.ts copies this."""
+    fps = min(10.0, 300.0 / max(duration, 0.1))
+    frames = max(1, int(duration * fps))
+    cols = min(frames, 20)
+    rows = -(-frames // cols)
+    return fps, frames, cols, rows
+
+
+def storyboard(src: Path, dst: Path, duration: float) -> None:
+    """Small frames (up to 10 a second, 300 at most) in one grid image. Scrubbing shows these
+    instead of seeking the video, which is slow and paints black in WebKitGTK."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    fps, _, cols, rows = storyboard_grid(duration)
+    _run(["-i", str(src), "-an", "-vf", f"fps={fps:.6f},scale=240:-2,tile={cols}x{rows}", "-frames:v", "1",
+          "-q:v", "6", *THREADS, str(dst)])
+
+
 def faststart(src: Path, dst: Path) -> None:
     """Move the index to the front so phones can start playing before it fully loads."""
     _run(["-i", str(src), "-map", "0", "-c", "copy", "-movflags", "+faststart", str(dst)])

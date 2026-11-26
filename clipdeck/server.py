@@ -647,6 +647,16 @@ def create_app(core: Core | None = None) -> FastAPI:
             tmp.replace(out)
         return FileResponse(out, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
+    @app.get("/media/storyboard/{clip_id}")
+    async def storyboard(clip_id: str):
+        c = get(clip_id)
+        out = CACHE_DIR / "storyboards" / f"{clip_id}-{int(c['size'])}.jpg"
+        if not out.exists():
+            tmp = out.with_suffix(f".{secrets.token_hex(4)}.part.jpg")  # two requests may race
+            await asyncio.to_thread(media.storyboard, Path(c["path"]), tmp, c["duration"])
+            tmp.replace(out)
+        return FileResponse(out, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
     @app.get("/media/frame/{clip_id}")
     async def frame(clip_id: str, t: float = 0.0):
         c = get(clip_id)
