@@ -61,7 +61,6 @@ def apply(hotkeys: dict) -> list[str]:
     ours = []
     set_ = []
     for combo, desc, args in ((hotkeys.get("clip", ""), "Save clip", "clip"),
-                              (hotkeys.get("clip_long", ""), "Save long clip", "clip --long"),
                               (hotkeys.get("record", ""), "Start/stop recording", "record")):
         e = _entry(combo, desc, args) if combo else None
         if e:

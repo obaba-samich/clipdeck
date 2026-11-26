@@ -49,7 +49,7 @@ def main() -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("serve", help="run the recorder and the web library")
     c = sub.add_parser("clip", help="save a clip from the replay buffer")
-    c.add_argument("--long", action="store_true", help="save the whole buffer")
+    c.add_argument("--long", action="store_true", help=argparse.SUPPRESS)  # old shortcut flag; every clip is the whole buffer now
     c.add_argument("--seconds", type=float, help="save the last N seconds")
     sub.add_parser("record", help="start or stop a full recording")
     sub.add_parser("status", help="show recorder and mic status")

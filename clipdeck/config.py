@@ -21,8 +21,7 @@ DEFAULTS: dict = {
     "recorder": {
         "enabled": True,
         # Seconds kept in the replay buffer. A clip saves the last N seconds.
-        "replay_seconds": 60,
-        "default_clip_seconds": 30,
+        "replay_seconds": 30,  # also the clip length: every clip saves the whole buffer
         "monitor": "DP-1",
         "fps": 60,
         # very_high | high | medium | low  (x264 constant quality)
@@ -65,7 +64,6 @@ DEFAULTS: dict = {
     },
     "hotkeys": {
         "clip": "F8",
-        "clip_long": "",  # optional second key that saves the whole buffer
         "record": "",  # start/stop a full recording
     },
     "server": {
@@ -112,6 +110,13 @@ class Config:
         if not data["server"]["secret"]:
             data["server"]["secret"] = secrets.token_hex(32)
             changed = True
+        # Clip length used to be a second setting under the buffer length, which confused it
+        # (buffer at 60 s still saved 30 s clips). Now a clip is always the whole buffer.
+        if data["recorder"].pop("default_clip_seconds", None) is not None:
+            changed = True
+        for gone in ("clip_long",):
+            if data["hotkeys"].pop(gone, None) is not None:
+                changed = True
         if changed or not self.path.exists():
             self._write(data)
         return data

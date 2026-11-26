@@ -61,8 +61,6 @@ class Core:
         if now - self._last_save < 1.0:
             return {"ok": False, "reason": "Already saving a clip"}
         game, appid = self.games.current()
-        if seconds is None:
-            seconds = self.config["recorder"]["default_clip_seconds"]
         if seconds and seconds >= self.config["recorder"]["replay_seconds"]:
             seconds = None  # whole buffer
         req = SaveRequest(source=source, seconds=seconds, game=game, steam_appid=appid)

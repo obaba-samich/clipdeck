@@ -151,7 +151,6 @@ class Menu(ServiceInterface):
         c = self.tray.core
         cfg = c.config
         rec = c.recorder.state
-        clip_s = cfg["recorder"]["default_clip_seconds"]
         buf = cfg["recorder"]["replay_seconds"]
         recording = rec == "recording"
 
@@ -171,8 +170,7 @@ class Menu(ServiceInterface):
             (1, item("Open Clipdeck")),
             (2, item(f"{status}{'' if game == 'Desktop' else ' · ' + game}", enabled=False)),
             (3, sep),
-            (4, item(f"Save clip (last {clip_s}s)", enabled=recording)),
-            (5, item(f"Save whole buffer ({buf}s)", enabled=recording)),
+            (4, item(f"Save clip (last {buf}s)", enabled=recording)),
             (17, item(f"Stop recording ({_mmss(time.time() - c.recorder.session_started)})" if c.recorder.session
                       else "Start full recording", enabled=recording)),
             (6, sep),
@@ -331,7 +329,7 @@ class Tray:
                   int(time.time() - c.recorder.session_started) // 5 if c.recorder.session else 0,
                   c.config["recorder"]["enabled"], c.config["voice"]["enabled"],
                   c.config["hype"]["enabled"], c.config["recorder"]["only_while_gaming"],
-                  c.config["recorder"]["replay_seconds"], c.config["recorder"]["default_clip_seconds"],
+                  c.config["recorder"]["replay_seconds"],
                   c.games.current()[0])
             if st != self._state:
                 self._state = st
@@ -393,7 +391,6 @@ class Tray:
         actions = {
             1: lambda: self.open("/"),
             4: lambda: c.clip(source="hotkey"),
-            5: lambda: c.clip(source="hotkey", seconds=10**9),
             7: lambda: flip("recorder", "enabled"),
             8: lambda: flip("voice", "enabled"),
             9: lambda: flip("hype", "enabled"),

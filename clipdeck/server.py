@@ -167,8 +167,8 @@ def create_app(core: Core | None = None) -> FastAPI:
         if source not in ("web", "phone", "hotkey", "hotkey_long", "cli"):
             source = "web"
         seconds = body.get("seconds")
-        if source == "hotkey_long":
-            source, seconds = "hotkey", 10**9
+        if source == "hotkey_long":  # old "long clip" shortcut; every clip is the whole buffer now
+            source = "hotkey"
         return core.clip(source=source, seconds=float(seconds) if seconds else None)
 
     @app.post("/api/record")

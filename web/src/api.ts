@@ -41,7 +41,7 @@ export type Status = {
 export type Settings = {
   clips_dir: string;
   recorder: {
-    enabled: boolean; replay_seconds: number; default_clip_seconds: number; monitor: string; fps: number;
+    enabled: boolean; replay_seconds: number; monitor: string; fps: number;
     quality: string; resolution: string; record_game_audio: boolean; record_mic: boolean;
     game_audio_device: string; mic_device: string; replay_storage: string; only_while_gaming: boolean;
     show_cursor: boolean; nice: number;
@@ -50,7 +50,7 @@ export type Settings = {
   hype: { enabled: boolean; threshold_db: number; min_ms: number; cooldown_s: number };
   feedback: { sound: boolean; notification: boolean; volume: number };
   storage: { max_gb: number; auto_clean: boolean; trash_days: number };
-  hotkeys: { clip: string; clip_long: string; record: string };
+  hotkeys: { clip: string; record: string };
   server: { port: number; lan: boolean; passcode: string };
   share: { discord_webhook: string };
 };

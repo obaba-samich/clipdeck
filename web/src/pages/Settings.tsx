@@ -171,13 +171,9 @@ export function Settings() {
               <Row title="Only while playing" desc="Turns the buffer on when a game starts and off when it closes. Saves CPU on the desktop.">
                 <Toggle label="Only while playing" checked={r.only_while_gaming} onChange={(v) => set({ recorder: { only_while_gaming: v } })} />
               </Row>
-              <Row title="Buffer length" desc={`How far back you can save. About ${bufMb >= 1000 ? (bufMb / 1000).toFixed(1) + " GB" : bufMb + " MB"} of RAM.`} wide>
-                <Range label="Buffer length" value={r.replay_seconds} min={15} max={300} step={15} onChange={(v) => set({ recorder: { replay_seconds: v, default_clip_seconds: Math.min(r.default_clip_seconds, v) } })} />
+              <Row title="Clip length" desc={`How far back a clip goes. Uses about ${bufMb >= 1000 ? (bufMb / 1000).toFixed(1) + " GB" : bufMb + " MB"} of RAM.`} wide>
+                <Range label="Clip length" value={r.replay_seconds} min={15} max={300} step={15} onChange={(v) => set({ recorder: { replay_seconds: v } })} />
                 <span className="val">{r.replay_seconds < 60 ? `${r.replay_seconds}s` : `${(r.replay_seconds / 60).toFixed(r.replay_seconds % 60 ? 1 : 0)} min`}</span>
-              </Row>
-              <Row title="Clip length" desc="What a normal clip saves. The long-clip hotkey saves the whole buffer." wide>
-                <Range label="Clip length" value={r.default_clip_seconds} min={5} max={r.replay_seconds} step={5} onChange={(v) => set({ recorder: { default_clip_seconds: v } })} />
-                <span className="val">{r.default_clip_seconds}s</span>
               </Row>
               <Row title="Screen">
                 <select className="select" value={r.monitor} onChange={(e) => set({ recorder: { monitor: e.target.value } })}>
@@ -230,11 +226,8 @@ export function Settings() {
 
           <Group id="hotkeys" title="Hotkeys" lead="Work everywhere, even in fullscreen games. Set through COSMIC's keyboard shortcuts. Click one and press a key; Backspace clears it.">
             <div className="rows">
-              <Row title="Save clip" desc={`Saves the last ${r.default_clip_seconds} seconds.`}>
+              <Row title="Save clip" desc={`Saves the last ${r.replay_seconds} seconds.`}>
                 <HotkeyInput value={s.hotkeys.clip} onChange={(v) => set({ hotkeys: { clip: v } })} />
-              </Row>
-              <Row title="Save long clip" desc={`Saves the whole ${r.replay_seconds}s buffer.`}>
-                <HotkeyInput value={s.hotkeys.clip_long} onChange={(v) => set({ hotkeys: { clip_long: v } })} />
               </Row>
               <Row title="Start / stop full recording" desc="Records everything until you press it again, like a normal screen recording.">
                 <HotkeyInput value={s.hotkeys.record ?? ""} onChange={(v) => set({ hotkeys: { record: v } })} />
