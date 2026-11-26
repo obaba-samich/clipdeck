@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { api, blankProject, Clip, fmtTime, media, newId, Project, RenderJob, Segment, TextItem, useLive } from "../api";
 import { Modal, Range, Seg, Toggle, useToast } from "../components/ui";
-import { softSeek, useFrameHold } from "../components/frameHold";
+import { loadStoryboard, softSeek, useFrameHold } from "../components/frameHold";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 const COLORS = ["#ffffff", "#ffd23d", "#ff5a36", "#3ddc97", "#4cc3ff", "#b07cff", "#ff6fb5", "#111111"];
@@ -160,7 +160,13 @@ export function Editor() {
   });
 
   const lay = useMemo(() => (p ? layout(p) : []), [p]);
-  useFrameHold(video, hold, !!p);
+  const holdCtl = useFrameHold(video, hold, !!p);
+  const rest = useRef(0);
+  const lastPeek = useRef<{ clip: string; src: number } | null>(null);
+  // Fetch every clip's storyboard up front so scrubbing is instant.
+  useEffect(() => {
+    Object.keys(clips).forEach(loadStoryboard);
+  }, [clips]);
   const total = lay.length ? lay[lay.length - 1].at + lay[lay.length - 1].len : 0;
 
   /* ---------- preview playback ---------- */
@@ -254,11 +260,10 @@ export function Editor() {
     if (!playing) showFrame(T);
   }, [segKey, clips]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Show one exact source frame while dragging a trim handle (no project change, no re-render).
-  const peek = (clipId: string, src: number) => {
+  // Show one exact source frame (no project change, no re-render).
+  const realPeek = (clipId: string, src: number) => {
     const v = video.current;
     if (!v) return;
-    if (playing) pause();
     const want = media.clip(clipId);
     if (!v.src.endsWith(want)) {
       v.src = want;
@@ -268,10 +273,51 @@ export function Editor() {
     else v.addEventListener("loadedmetadata", () => softSeek(v, src), { once: true });
   };
 
-  const seek = (t: number) => {
+  // While a drag is moving, show storyboard frames instead of seeking the video (slow, and black
+  // while seeking in WebKitGTK). When the pointer rests for a moment, fetch the sharp frame.
+  const REST_MS = 180;
+  const peek = (clipId: string, src: number) => {
+    if (playing) pause();
+    clearTimeout(rest.current);
+    lastPeek.current = { clip: clipId, src };
+    const c = clips[clipId];
+    if (c && holdCtl.scrub(clipId, c.duration, src)) {
+      rest.current = window.setTimeout(() => {
+        realPeek(clipId, src);
+        holdCtl.release();
+      }, REST_MS);
+    } else realPeek(clipId, src);
+  };
+  const scrub = (t: number) => {
+    if (!p) return;
     const nt = Math.max(0, Math.min(total, t));
     setT(nt);
+    clearTimeout(rest.current);
+    lastPeek.current = null;
+    const loc = locate(p, nt);
+    const c = loc ? clips[loc.seg.clip] : undefined;
+    if (!playing && loc && c && holdCtl.scrub(c.id, c.duration, loc.src)) {
+      rest.current = window.setTimeout(() => {
+        showFrame(nt);
+        holdCtl.release();
+      }, REST_MS);
+    } else showFrame(nt, playing);
+  };
+  // A drag ended without a final seek (trim handles, text bars).
+  const release = () => {
+    clearTimeout(rest.current);
+    if (lastPeek.current) realPeek(lastPeek.current.clip, lastPeek.current.src);
+    lastPeek.current = null;
+    holdCtl.release();
+  };
+
+  const seek = (t: number) => {
+    const nt = Math.max(0, Math.min(total, t));
+    clearTimeout(rest.current);
+    lastPeek.current = null;
+    setT(nt);
     showFrame(nt, playing);
+    holdCtl.release();
   };
 
   // Fit the preview frame inside the available space at the project's exact shape.
@@ -482,6 +528,8 @@ export function Editor() {
             total={total}
             sel={sel}
             onSeek={seek}
+            onScrub={scrub}
+            onRelease={release}
             onPeek={peek}
             onSelect={(s) => {
               setSel(s);
@@ -784,9 +832,9 @@ function TextEditor({ t, T, total, change, remove }: { t: TextItem; T: number; t
 type Ghost = { id: string; a: number; b: number };
 type Drag = { kind: string; id: string; x0: number; a: number; b: number; moved: boolean; pointer: number };
 
-function Timeline({ p, clips, T, total, sel, onSeek, onPeek, onSelect, onTrimSeg, onMoveText }: {
+function Timeline({ p, clips, T, total, sel, onSeek, onScrub, onRelease, onPeek, onSelect, onTrimSeg, onMoveText }: {
   p: Project; clips: Record<string, Clip>; T: number; total: number; sel: { kind: "seg" | "text"; id: string } | null;
-  onSeek: (t: number) => void; onPeek: (clip: string, src: number) => void;
+  onSeek: (t: number) => void; onScrub: (t: number) => void; onRelease: () => void; onPeek: (clip: string, src: number) => void;
   onSelect: (s: { kind: "seg" | "text"; id: string }) => void;
   onTrimSeg: (id: string, start: number, end: number, done: boolean) => void;
   onMoveText: (id: string, start: number, end: number, done: boolean) => void;
@@ -835,7 +883,7 @@ function Timeline({ p, clips, T, total, sel, onSeek, onPeek, onSelect, onTrimSeg
     if (d.kind === "seek") {
       const t = timeAt(e.clientX);
       setScrubT(t);
-      later(() => onSeek(t));
+      later(() => onScrub(t));
       return;
     }
     if (d.kind === "segL" || d.kind === "segR") {
@@ -856,13 +904,14 @@ function Timeline({ p, clips, T, total, sel, onSeek, onPeek, onSelect, onTrimSeg
     } else if (d.kind === "textL") a = Math.max(0, Math.min(d.a + dt, d.b - 0.2));
     else if (d.kind === "textR") b = Math.min(total, Math.max(d.b + dt, d.a + 0.2));
     setGhost({ id: d.id, a, b });
-    later(() => onSeek(d.kind === "textR" ? b - 0.02 : a + 0.02));
+    later(() => onScrub(d.kind === "textR" ? b - 0.02 : a + 0.02));
   };
 
   const finish = (e: React.PointerEvent) => {
     const d = drag.current;
     if (!d || e.pointerId !== d.pointer) return;
     drag.current = null;
+    pending.current = null; // drop a preview update still waiting for the next frame
     if (d.kind === "seek") {
       const t = timeAt(e.clientX);
       setScrubT(null);
@@ -871,6 +920,7 @@ function Timeline({ p, clips, T, total, sel, onSeek, onPeek, onSelect, onTrimSeg
     }
     const g = ghost;
     setGhost(null);
+    onRelease();
     if (!g || !d.moved) return;
     if (d.kind.startsWith("seg")) onTrimSeg(g.id, g.a, g.b, true);
     else onMoveText(g.id, g.a, g.b, true);

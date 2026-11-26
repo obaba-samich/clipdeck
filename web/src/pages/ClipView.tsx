@@ -8,7 +8,7 @@ import { Album, api, Clip, fmtDate, fmtSize, fmtTime, media, SOURCE_LABEL, useLi
 import { GameIcon } from "../components/ClipGrid";
 import { useApp } from "../components/Layout";
 import { Empty, Menu, Modal, Range, useConfirm, useToast } from "../components/ui";
-import { softSeek, useFrameHold } from "../components/frameHold";
+import { loadStoryboard, softSeek, useFrameHold } from "../components/frameHold";
 
 const STRIP = 10;
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
@@ -63,6 +63,12 @@ export function ClipView() {
 
   const multi = (clip?.audio_tracks ?? 0) >= 2;
   const dur = clip?.duration ?? 0;
+  const holdCtl = useFrameHold(video, hold, !!clip && !!trim);
+  const rest = useRef(0);
+  const scrubAt = useRef<number | null>(null); // where a drag is, while the video hasn't moved yet
+  useEffect(() => {
+    if (id) loadStoryboard(id);
+  }, [id]);
 
   /* --- separate game/mic tracks play through <audio> elements kept in sync with the video --- */
   const syncAudio = useCallback(
@@ -91,7 +97,7 @@ export function ClipView() {
     if (!v) return;
     let raf = 0;
     const tick = () => {
-      setT(v.currentTime);
+      setT(scrubAt.current ?? v.currentTime);
       if (trim && !v.paused && v.currentTime >= trim.b - 0.03) {
         if (loop) v.currentTime = trim.a;
         else v.pause();
@@ -119,10 +125,26 @@ export function ClipView() {
     const v = video.current;
     if (!v) return;
     const to = Math.max(0, Math.min(dur, s));
+    clearTimeout(rest.current);
+    scrubAt.current = null;
     softSeek(v, to);
     setT(to);
+    holdCtl.release();
     syncAudio(true);
+  };  // While dragging a paused clip, show storyboard frames instead of seeking (slow, and black
+  // while seeking in WebKitGTK). Seek for real when the pointer rests or lets go.
+  const scrub = (s: number) => {
+    const v = video.current;
+    if (!v) return;
+    const to = Math.max(0, Math.min(dur, s));
+    clearTimeout(rest.current);
+    if (v.paused && holdCtl.scrub(id, dur, to)) {
+      scrubAt.current = to;
+      setT(to);
+      rest.current = window.setTimeout(() => seek(to), 180);
+    } else seek(to);
   };
+
 
   const setIn = () => trim && (setTrim({ a: Math.min(t, trim.b - 0.5), b: trim.b }), setDirty(true));
   const setOut = () => trim && (setTrim({ a: trim.a, b: Math.max(t, trim.a + 0.5) }), setDirty(true));
@@ -249,8 +271,6 @@ export function ClipView() {
     refresh();
   };
 
-  useFrameHold(video, hold, !!clip && !!trim);
-
   if (missing) return <Empty icon={<X />} title="Clip not found" body="It may have been deleted." action={<Link className="btn" to="/">Back to library</Link>} />;
   if (!clip || !trim) return <div className="viewer"><div className="player skeleton" /></div>;
 
@@ -285,7 +305,7 @@ export function ClipView() {
           <div className="overlay"><div className="big-play"><Play /></div></div>
         </div>
 
-        <Timeline id={id} dur={dur} t={t} trim={trim} onSeek={seek} onTrim={(a, b) => { setTrim({ a, b }); setDirty(true); }} />
+        <Timeline id={id} dur={dur} t={t} trim={trim} onSeek={seek} onScrub={scrub} onTrim={(a, b) => { setTrim({ a, b }); setDirty(true); }} />
 
         <div className="controls">
           <button className="btn icon" onClick={toggle} aria-label={paused ? "Play" : "Pause"}>{paused ? <Play /> : <Pause />}</button>
@@ -407,7 +427,7 @@ export function ClipView() {
 
 /* ---------- timeline with trim handles and a frame strip ---------- */
 
-function Timeline({ id, dur, t, trim, onSeek, onTrim }: { id: string; dur: number; t: number; trim: { a: number; b: number }; onSeek: (s: number) => void; onTrim: (a: number, b: number) => void }) {
+function Timeline({ id, dur, t, trim, onSeek, onScrub, onTrim }: { id: string; dur: number; t: number; trim: { a: number; b: number }; onSeek: (s: number) => void; onScrub: (s: number) => void; onTrim: (a: number, b: number) => void }) {
   const el = useRef<HTMLDivElement>(null);
   const drag = useRef<"a" | "b" | "seek" | null>(null);
   const [stripOk, setStripOk] = useState(true);
@@ -428,10 +448,16 @@ function Timeline({ id, dur, t, trim, onSeek, onTrim }: { id: string; dur: numbe
     const s = at(e.clientX);
     if (drag.current === "a") onTrim(Math.min(s, trim.b - 0.5), trim.b);
     else if (drag.current === "b") onTrim(trim.a, Math.max(s, trim.a + 0.5));
-    else onSeek(s);
-    if (drag.current !== "seek") onSeek(s);
+    onScrub(s);
   };
-  const up = () => (drag.current = null);
+  const up = (e: React.PointerEvent) => {
+    if (!drag.current) return;
+    const s = at(e.clientX);
+    const what = drag.current;
+    drag.current = null;
+    // Land exactly where the drag ended (a trim handle stops at its limit).
+    onSeek(what === "a" ? Math.min(s, trim.b - 0.5) : what === "b" ? Math.max(s, trim.a + 0.5) : s);
+  };
 
   return (
     <div className="timeline" ref={el} onPointerDown={(e) => down(e, "seek")} onPointerMove={move} onPointerUp={up} onPointerCancel={up}>
