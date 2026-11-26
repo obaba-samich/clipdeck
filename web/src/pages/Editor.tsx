@@ -182,8 +182,9 @@ export function Editor() {
       }
     }
     const seek = () => {
-      v.currentTime = loc.src;
-      if (m && m.src) m.currentTime = loc.src;
+      // Seeking to the frame already shown still blanks it for a moment in some browsers.
+      if (Math.abs(v.currentTime - loc.src) > 0.004) v.currentTime = loc.src;
+      if (m && m.src && Math.abs(m.currentTime - loc.src) > 0.004) m.currentTime = loc.src;
     };
     if (v.readyState >= 1) seek();
     else v.addEventListener("loadedmetadata", seek, { once: true });
@@ -243,9 +244,13 @@ export function Editor() {
     return () => cancelAnimationFrame(raf);
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-show the frame only when the clips on the timeline really change. Every edit clones the
+  // project, so depending on p.segments itself re-seeked (and blinked) the preview on every
+  // slider move, text drag or color change.
+  const segKey = useMemo(() => JSON.stringify(p?.segments ?? []), [p?.segments]);
   useEffect(() => {
     if (!playing) showFrame(T);
-  }, [p?.segments, clips]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [segKey, clips]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show one exact source frame while dragging a trim handle (no project change, no re-render).
   const peek = (clipId: string, src: number) => {
