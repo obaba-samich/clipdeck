@@ -71,6 +71,7 @@ class Core:
             self.feedback.failed(why)
             return {"ok": False, "reason": why}
         self._last_save = now
+        self.feedback.clipping()
         self.events.emit("saving", source=source, game=game)
         return {"ok": True, "game": game}
 

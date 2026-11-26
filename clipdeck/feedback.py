@@ -66,8 +66,15 @@ class Feedback:
                           "-h", "string:x-canonical-private-synchronous:clipdeck", title, body],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def saved(self, clip: dict, thumb: Path | None = None) -> None:
+    def clipping(self) -> None:
+        """The moment a clip is asked for: play the chime now, like Medal.
+
+        Waiting for the saved file (recorder write, trim, thumbnail) made it 4-7 s late.
+        """
         self._play(saved_sound())
+
+    def saved(self, clip: dict, thumb: Path | None = None) -> None:
+        # No sound here: clips chimed when asked for, full recordings when stopped.
         secs = round(clip["duration"])
         how = {"voice": "Voice clip saved", "hype": "Auto clip saved", "phone": "Clipped from phone",
                "record": "Recording saved"}.get(clip["source"], "Clip saved")
