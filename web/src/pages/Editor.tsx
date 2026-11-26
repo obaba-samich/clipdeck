@@ -162,6 +162,7 @@ export function Editor() {
   const lay = useMemo(() => (p ? layout(p) : []), [p]);
   const holdCtl = useFrameHold(video, hold, !!p);
   const rest = useRef(0);
+  const resumeAfter = useRef(false); // a drag paused playback and should resume it
   const lastPeek = useRef<{ clip: string; src: number } | null>(null);
   // Fetch every clip's storyboard up front so scrubbing is instant.
   useEffect(() => {
@@ -296,12 +297,12 @@ export function Editor() {
     lastPeek.current = null;
     const loc = locate(p, nt);
     const c = loc ? clips[loc.seg.clip] : undefined;
-    if (!playing && loc && c && holdCtl.scrub(c.id, c.duration, loc.src)) {
+    if (video.current?.paused && loc && c && holdCtl.scrub(c.id, c.duration, loc.src)) {
       rest.current = window.setTimeout(() => {
         showFrame(nt);
         holdCtl.release();
       }, REST_MS);
-    } else showFrame(nt, playing);
+    } else showFrame(nt, playing && !resumeAfter.current);
   };
   // A drag ended without a final seek (trim handles, text bars).
   const release = () => {
@@ -311,12 +312,27 @@ export function Editor() {
     holdCtl.release();
   };
 
+  // Dragging anything on the timeline pauses playback; it carries on from where you let go.
+  const grab = () => {
+    resumeAfter.current = playing;
+    if (playing) pause();
+  };
+  const letGo = (at = T) => {
+    if (!resumeAfter.current) return;
+    resumeAfter.current = false;
+    const start = at >= total - 0.05 ? 0 : at;
+    setT(start);
+    setPlaying(true);
+    showFrame(start, true);
+  };
+
   const seek = (t: number) => {
     const nt = Math.max(0, Math.min(total, t));
     clearTimeout(rest.current);
     lastPeek.current = null;
     setT(nt);
-    showFrame(nt, playing);
+    // During a drag the pause hasn't reached `playing` yet; don't restart playback.
+    showFrame(nt, playing && !resumeAfter.current);
     holdCtl.release();
   };
 
@@ -530,6 +546,8 @@ export function Editor() {
             onSeek={seek}
             onScrub={scrub}
             onRelease={release}
+            onGrab={grab}
+            onLetGo={letGo}
             onPeek={peek}
             onSelect={(s) => {
               setSel(s);
@@ -832,9 +850,9 @@ function TextEditor({ t, T, total, change, remove }: { t: TextItem; T: number; t
 type Ghost = { id: string; a: number; b: number };
 type Drag = { kind: string; id: string; x0: number; a: number; b: number; moved: boolean; pointer: number };
 
-function Timeline({ p, clips, T, total, sel, onSeek, onScrub, onRelease, onPeek, onSelect, onTrimSeg, onMoveText }: {
+function Timeline({ p, clips, T, total, sel, onSeek, onScrub, onRelease, onGrab, onLetGo, onPeek, onSelect, onTrimSeg, onMoveText }: {
   p: Project; clips: Record<string, Clip>; T: number; total: number; sel: { kind: "seg" | "text"; id: string } | null;
-  onSeek: (t: number) => void; onScrub: (t: number) => void; onRelease: () => void; onPeek: (clip: string, src: number) => void;
+  onSeek: (t: number) => void; onScrub: (t: number) => void; onRelease: () => void; onGrab: () => void; onLetGo: (t?: number) => void; onPeek: (clip: string, src: number) => void;
   onSelect: (s: { kind: "seg" | "text"; id: string }) => void;
   onTrimSeg: (id: string, start: number, end: number, done: boolean) => void;
   onMoveText: (id: string, start: number, end: number, done: boolean) => void;
@@ -871,6 +889,7 @@ function Timeline({ p, clips, T, total, sel, onSeek, onScrub, onRelease, onPeek,
     e.stopPropagation();
     e.preventDefault();
     drag.current = { kind, id, x0: e.clientX, a, b, moved: false, pointer: e.pointerId };
+    onGrab();
     el.current?.setPointerCapture(e.pointerId);
     if (kind !== "seek") setGhost({ id, a, b });
   };
@@ -916,11 +935,13 @@ function Timeline({ p, clips, T, total, sel, onSeek, onScrub, onRelease, onPeek,
       const t = timeAt(e.clientX);
       setScrubT(null);
       onSeek(t);
+      onLetGo(t);
       return;
     }
     const g = ghost;
     setGhost(null);
     onRelease();
+    onLetGo();
     if (!g || !d.moved) return;
     if (d.kind.startsWith("seg")) onTrimSeg(g.id, g.a, g.b, true);
     else onMoveText(g.id, g.a, g.b, true);

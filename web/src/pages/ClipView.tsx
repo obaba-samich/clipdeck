@@ -131,7 +131,18 @@ export function ClipView() {
     setT(to);
     holdCtl.release();
     syncAudio(true);
-  };  // While dragging a paused clip, show storyboard frames instead of seeking (slow, and black
+  };  // Dragging the timeline pauses the clip; it carries on from where you let go.
+  const resumeAfter = useRef(false);
+  const grab = () => {
+    const v = video.current;
+    resumeAfter.current = !!v && !v.paused;
+    v?.pause();
+  };
+  const letGo = () => {
+    if (resumeAfter.current) video.current?.play().catch(() => {});
+    resumeAfter.current = false;
+  };
+  // While dragging a paused clip, show storyboard frames instead of seeking (slow, and black
   // while seeking in WebKitGTK). Seek for real when the pointer rests or lets go.
   const scrub = (s: number) => {
     const v = video.current;
@@ -305,7 +316,7 @@ export function ClipView() {
           <div className="overlay"><div className="big-play"><Play /></div></div>
         </div>
 
-        <Timeline id={id} dur={dur} t={t} trim={trim} onSeek={seek} onScrub={scrub} onTrim={(a, b) => { setTrim({ a, b }); setDirty(true); }} />
+        <Timeline id={id} dur={dur} t={t} trim={trim} onSeek={seek} onScrub={scrub} onGrab={grab} onLetGo={letGo} onTrim={(a, b) => { setTrim({ a, b }); setDirty(true); }} />
 
         <div className="controls">
           <button className="btn icon" onClick={toggle} aria-label={paused ? "Play" : "Pause"}>{paused ? <Play /> : <Pause />}</button>
@@ -427,7 +438,7 @@ export function ClipView() {
 
 /* ---------- timeline with trim handles and a frame strip ---------- */
 
-function Timeline({ id, dur, t, trim, onSeek, onScrub, onTrim }: { id: string; dur: number; t: number; trim: { a: number; b: number }; onSeek: (s: number) => void; onScrub: (s: number) => void; onTrim: (a: number, b: number) => void }) {
+function Timeline({ id, dur, t, trim, onSeek, onScrub, onGrab, onLetGo, onTrim }: { id: string; dur: number; t: number; trim: { a: number; b: number }; onSeek: (s: number) => void; onScrub: (s: number) => void; onGrab: () => void; onLetGo: () => void; onTrim: (a: number, b: number) => void }) {
   const el = useRef<HTMLDivElement>(null);
   const drag = useRef<"a" | "b" | "seek" | null>(null);
   const [stripOk, setStripOk] = useState(true);
@@ -440,6 +451,7 @@ function Timeline({ id, dur, t, trim, onSeek, onScrub, onTrim }: { id: string; d
   const down = (e: React.PointerEvent, what: "a" | "b" | "seek") => {
     e.stopPropagation();
     drag.current = what;
+    onGrab();
     el.current?.setPointerCapture(e.pointerId);
     if (what === "seek") onSeek(at(e.clientX));
   };
@@ -457,6 +469,7 @@ function Timeline({ id, dur, t, trim, onSeek, onScrub, onTrim }: { id: string; d
     drag.current = null;
     // Land exactly where the drag ended (a trim handle stops at its limit).
     onSeek(what === "a" ? Math.min(s, trim.b - 0.5) : what === "b" ? Math.max(s, trim.a + 0.5) : s);
+    onLetGo();
   };
 
   return (
