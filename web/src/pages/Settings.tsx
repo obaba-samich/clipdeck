@@ -182,7 +182,8 @@ export function Settings() {
               </Row>
               <Row title="Screen">
                 <select className="select" value={r.monitor} onChange={(e) => set({ recorder: { monitor: e.target.value } })}>
-                  {(opts?.monitors.length ? opts.monitors : [{ id: r.monitor, label: r.monitor }]).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  <option value="">First screen</option>
+                  {(opts?.monitors.length ? opts.monitors : r.monitor ? [{ id: r.monitor, label: r.monitor }] : []).map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
                 </select>
               </Row>
               <Row title="Resolution">

@@ -25,7 +25,7 @@ DEFAULTS: dict = {
         # "gpu" (falls back to CPU if the card can't encode) or "cpu". Polaris cards
         # (RX 570 etc.) are always CPU whatever this says; see recorder.encoder_for.
         "encoder": "gpu",
-        "monitor": "DP-1",
+        "monitor": "",  # empty = the first monitor (recorder.pick_monitor)
         "fps": 60,
         # very_high | high | medium | low  (x264 constant quality)
         "quality": "high",
@@ -71,7 +71,7 @@ DEFAULTS: dict = {
     },
     "server": {
         "port": 7878,
-        "lan": True,
+        "lan": False,  # phones and other devices; Settings → Phone turns it on
         "passcode": "",
         "secret": "",
     },

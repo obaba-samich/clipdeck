@@ -40,6 +40,24 @@ def blocked_gpu() -> str | None:
     return None
 
 
+def pick_monitor(wanted: str) -> str:
+    """The monitor to capture: the saved one if it's connected, otherwise the first one.
+
+    An empty setting (new installs) means "the first monitor"."""
+    try:
+        out = subprocess.run(GSR + ["--list-capture-options"], capture_output=True, text=True, timeout=20).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return wanted or "screen"
+    names = [line.split("|", 1)[0].strip() for line in out.splitlines() if "|" in line]
+    if wanted and wanted in names:
+        return wanted
+    if names:
+        if wanted:
+            log.warning("monitor %s isn't connected; using %s", wanted, names[0])
+        return names[0]
+    return wanted or "screen"
+
+
 def encoder_for(setting: str) -> tuple[str, str]:
     """(encoder, why) for the recorder: "gpu" or "cpu"."""
     bad = blocked_gpu()
@@ -143,7 +161,7 @@ class Recorder:
         r = self.config["recorder"]
         enc, _ = encoder_for(r.get("encoder", "gpu"))
         cmd = GSR + [
-            "-w", r["monitor"],
+            "-w", pick_monitor(r["monitor"]),
             "-encoder", enc, "-k", "h264",
             "-f", str(int(r["fps"])), "-fm", "cfr",
             "-q", QUALITIES.get(r["quality"], "very_high"),
