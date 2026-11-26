@@ -688,3 +688,7 @@ h2.section a:hover { color: var(--text); }
 @media (pointer: coarse) {
   input:not([type="range"]):not([type="checkbox"]):not([type="radio"]), select, textarea { font-size: max(16px, 1em); }
 }
+
+/* Last finished frame, shown over a paused or seeking video so scrubbing never flashes black. */
+.frame-hold { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; visibility: hidden; }
+.player .frame-hold { object-fit: contain; }

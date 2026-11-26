@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { api, blankProject, Clip, fmtTime, media, newId, Project, RenderJob, Segment, TextItem, useLive } from "../api";
 import { Modal, Range, Seg, Toggle, useToast } from "../components/ui";
+import { softSeek, useFrameHold } from "../components/frameHold";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 const COLORS = ["#ffffff", "#ffd23d", "#ff5a36", "#3ddc97", "#4cc3ff", "#b07cff", "#ff6fb5", "#111111"];
@@ -71,6 +72,7 @@ export function Editor() {
 
   const video = useRef<HTMLVideoElement>(null);
   const mic = useRef<HTMLAudioElement>(null);
+  const hold = useRef<HTMLCanvasElement>(null);
   const stage = useRef<HTMLDivElement>(null);
   const wrap = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 640, h: 360 });
@@ -158,6 +160,7 @@ export function Editor() {
   });
 
   const lay = useMemo(() => (p ? layout(p) : []), [p]);
+  useFrameHold(video, hold, !!p);
   const total = lay.length ? lay[lay.length - 1].at + lay[lay.length - 1].len : 0;
 
   /* ---------- preview playback ---------- */
@@ -182,9 +185,8 @@ export function Editor() {
       }
     }
     const seek = () => {
-      // Seeking to the frame already shown still blanks it for a moment in some browsers.
-      if (Math.abs(v.currentTime - loc.src) > 0.004) v.currentTime = loc.src;
-      if (m && m.src && Math.abs(m.currentTime - loc.src) > 0.004) m.currentTime = loc.src;
+      softSeek(v, loc.src);
+      if (m && m.src) softSeek(m, loc.src);
     };
     if (v.readyState >= 1) seek();
     else v.addEventListener("loadedmetadata", seek, { once: true });
@@ -262,8 +264,8 @@ export function Editor() {
       v.src = want;
       curSeg.current = null;
     }
-    if (v.readyState >= 1) v.currentTime = src;
-    else v.addEventListener("loadedmetadata", () => (v.currentTime = src), { once: true });
+    if (v.readyState >= 1) softSeek(v, src);
+    else v.addEventListener("loadedmetadata", () => softSeek(v, src), { once: true });
   };
 
   const seek = (t: number) => {
@@ -377,6 +379,14 @@ export function Editor() {
     p.fade_out && T > total - p.fade_out ? (T - (total - p.fade_out)) / p.fade_out : 0,
   );
 
+  const look: React.CSSProperties = {
+    filter,
+    objectFit: p.fit === "fill" ? "cover" : "contain",
+    objectPosition: `${p.pan * 100}% 50%`,
+    transform: `scale(${p.zoom})`,
+    transformOrigin: `${p.pan * 100}% 50%`,
+  };
+
   return (
     <div className="editor">
       <header className="ed-top">
@@ -425,14 +435,9 @@ export function Editor() {
                 playsInline
                 preload="auto"
                 className="ed-video"
-                style={{
-                  filter,
-                  objectFit: p.fit === "fill" ? "cover" : "contain",
-                  objectPosition: `${p.pan * 100}% 50%`,
-                  transform: `scale(${p.zoom})`,
-                  transformOrigin: `${p.pan * 100}% 50%`,
-                }}
+                style={look}
               />
+              <canvas ref={hold} className="ed-video frame-hold" style={look} />
               <audio ref={mic} preload="auto" />
               {a.vignette && <div className="ed-vignette" />}
               {p.texts.map((t) => (

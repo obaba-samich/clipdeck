@@ -8,6 +8,7 @@ import { Album, api, Clip, fmtDate, fmtSize, fmtTime, media, SOURCE_LABEL, useLi
 import { GameIcon } from "../components/ClipGrid";
 import { useApp } from "../components/Layout";
 import { Empty, Menu, Modal, Range, useConfirm, useToast } from "../components/ui";
+import { softSeek, useFrameHold } from "../components/frameHold";
 
 const STRIP = 10;
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
@@ -22,6 +23,7 @@ export function ClipView() {
   const [confirm, confirmNode] = useConfirm();
 
   const video = useRef<HTMLVideoElement>(null);
+  const hold = useRef<HTMLCanvasElement>(null);
   const tracks = useRef<HTMLAudioElement[]>([]);
   const [paused, setPaused] = useState(true);
   const [t, setT] = useState(0);
@@ -116,8 +118,9 @@ export function ClipView() {
   const seek = (s: number) => {
     const v = video.current;
     if (!v) return;
-    v.currentTime = Math.max(0, Math.min(dur, s));
-    setT(v.currentTime);
+    const to = Math.max(0, Math.min(dur, s));
+    softSeek(v, to);
+    setT(to);
     syncAudio(true);
   };
 
@@ -246,6 +249,8 @@ export function ClipView() {
     refresh();
   };
 
+  useFrameHold(video, hold, !!clip && !!trim);
+
   if (missing) return <Empty icon={<X />} title="Clip not found" body="It may have been deleted." action={<Link className="btn" to="/">Back to library</Link>} />;
   if (!clip || !trim) return <div className="viewer"><div className="player skeleton" /></div>;
 
@@ -273,6 +278,7 @@ export function ClipView() {
             onRateChange={() => syncAudio(true)}
             onLoadedMetadata={(e) => { if (trim.a > 0) e.currentTarget.currentTime = trim.a; }}
           />
+          <canvas ref={hold} className="frame-hold" />
           {multi && [0, 1].map((n) => (
             <audio key={n} ref={(el) => { if (el) tracks.current[n] = el; }} src={`/media/audio/${id}/${n}`} preload="auto" />
           ))}
